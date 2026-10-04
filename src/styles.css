@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  --color-paper: #f6f1e8;
+  --color-paper-deep: #efe6d8;
+  --color-card: #fffdf8;
+  --color-ink: #1c1915;
+  --color-muted: #6f675e;
+  --color-line: #e4d9c8;
+  --color-saffron: #c4621a;
+  --color-olive: #3f5344;
+  --color-olive-soft: #e7efe9;
+
+  --radius-card: 1.25rem;
+  --spacing-map: 18rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    line-height: 1.5;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-saffron);
+    outline-offset: 2px;
+  }
+}
+
+@media (max-width: 40rem) {
+  header span.font-medium {
+    display: none;
+  }
+}
+
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  background: var(--color-paper-deep);
+  font-family: var(--font-sans);
+  z-index: 0;
+}
+
+.leaflet-div-icon.aas-icon {
+  background: transparent;
+  border: none;
+}
+
+.aas-me,
+.aas-room {
+  border-radius: 999px;
+  border: 2px solid var(--color-card);
+}
+
+.aas-me {
+  width: 22px;
+  height: 22px;
+  background: var(--color-ink);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-saffron) 40%, transparent);
+}
+
+.aas-room {
+  width: 14px;
+  height: 14px;
+  background: var(--color-muted);
+}
+
+.aas-room.in {
+  background: var(--color-olive);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aas-me {
+    animation: aas-pulse 2.4s ease-out infinite;
+  }
+}
+
+@keyframes aas-pulse {
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aas-me {
+    animation: none;
+  }
+}
