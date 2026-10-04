@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="hi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AasPaas</title>
+    <meta
+      name="description"
+      content="रेंज में आते ही आस-पास के कमरे और मकान मालिक का संपर्क। 1 से 10 किलोमीटर।"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,650&family=Outfit:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      :root {
+        --paper: #f6f1e8;
+        --paper-deep: #efe6d8;
+        --card: #fffdf8;
+        --ink: #1c1915;
+        --muted: #6f675e;
+        --line: #e4d9c8;
+        --saffron: #c4621a;
+        --olive: #3f5344;
+        --olive-soft: #e7efe9;
+        --sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+        --display: "Fraunces", ui-serif, Georgia, serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+      button, input, select { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: default; }
+      a { color: inherit; }
+      h1, h2 { font-family: var(--display); font-weight: 560; text-wrap: balance; margin: 0; }
+      p { text-wrap: pretty; }
+      .wrap { width: min(48rem, calc(100% - 2rem)); margin: 0 auto; }
+      .top { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 0; background: var(--paper); }
+      .brand { font-family: var(--display); font-size: 1.6rem; text-decoration: none; }
+      .muted { color: var(--muted); }
+      .hero { font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.05; }
+      .lede { font-size: 1.05rem; max-width: 38rem; }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+        height: 3rem; padding: 0 1.25rem; border-radius: 999px; border: 1px solid transparent;
+        background: var(--ink); color: var(--paper); text-decoration: none; font-weight: 500;
+      }
+      .btn.ghost { background: var(--card); color: var(--ink); border-color: var(--line); }
+      .btn.olive { background: var(--olive); color: var(--paper); }
+      .row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .grid { display: grid; gap: 0.8rem; }
+      @media (min-width: 40rem) { .grid.three { grid-template-columns: repeat(3, 1fr); } }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 1.25rem; padding: 1rem; }
+      .card h2 { font-size: 1.5rem; }
+      .map {
+        height: 18rem; border-radius: 1.25rem; overflow: hidden; border: 1px solid var(--line);
+        background: var(--paper-deep);
+      }
+      .leaflet-container { font-family: var(--sans); background: var(--paper-deep); }
+      label { display: block; font-size: 0.92rem; }
+      input, select {
+        width: 100%; height: 3rem; margin-top: 0.3rem; border-radius: 1rem;
+        border: 1px solid var(--line); background: var(--card); padding: 0 0.9rem;
+      }
+      input[type="range"] { height: auto; padding: 0; accent-color: var(--olive); }
+      .err { color: var(--saffron); font-size: 0.9rem; }
+      .chips { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+      .chip {
+        height: 2.75rem; padding: 0 0.95rem; border-radius: 999px; border: 1px solid var(--line);
+        background: var(--card); white-space: nowrap; flex: none;
+      }
+      .chip.on { background: var(--olive); color: var(--paper); border-color: var(--olive); }
+      .dock {
+        position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+        display: grid; grid-template-columns: repeat(4, 1fr); z-index: 20;
+      }
+      .dock button {
+        height: 3.5rem; border: 0; background: transparent; color: var(--muted); font-size: 0.78rem;
+      }
+      .dock button.on { color: var(--ink); font-weight: 600; }
+      .unlock { background: var(--olive-soft); border-color: var(--olive); }
+      .kicker { color: var(--olive); font-size: 0.85rem; font-weight: 600; letter-spacing: 0.02em; }
+      .stat { font-family: var(--display); font-size: 1.7rem; color: var(--olive); line-height: 1; }
+      .hide { display: none; }
+      .pin-me, .pin-room { width: 16px; height: 16px; border-radius: 99px; border: 2px solid #fffdf8; }
+      .pin-me { background: #1c1915; box-shadow: 0 0 0 5px rgba(196, 98, 26, 0.35); }
+      .pin-room { background: #3f5344; }
+      .pin-room.out { background: #6f675e; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const KEY = "aaspaas.live.v1";
+      const JAIPUR = { lat: 26.9124, lng: 75.7873 };
+      const SPOTS = [
+        { id: "c", name: "सी-स्कीम", lat: 26.9053, lng: 75.8073 },
+        { id: "mi", name: "एमआई रोड", lat: 26.9168, lng: 75.8087 },
+        { id: "mal", name: "मालवीय नगर", lat: 26.8546, lng: 75.8242 },
+        { id: "vai", name: "वैशाली नगर", lat: 26.9118, lng: 75.7439 },
+        { id: "man", name: "मानसरोवर", lat: 26.8573, lng: 75.7693 },
+        { id: "jag", name: "जगतपुरा", lat: 26.8382, lng: 75.8627 },
+      ];
+      const SEED_LISTINGS = [
+        {
+          id: "seed-c",
+          ownerId: "seed-meena",
+          title: "सी-स्कीम में 1 BHK",
+          roomType: "1 BHK",
+          rent: 14000,
+          furnishing: "सेमी-फर्निश्ड",
+          address: "अशोक मार्ग, सी-स्कीम, जयपुर",
+          lat: 26.9053,
+          lng: 75.8073,
+          contactName: "मीना शर्मा",
+          contactPhone: "9876501122",
+          ownerRadius: 3,
+          available: true,
+        },
+        {
+          id: "seed-man",
+          ownerId: "seed-ravi",
+          title: "मानसरोवर का कमरा",
+          roomType: "कमरा",
+          rent: 6500,
+          furnishing: "फर्निश्ड",
+          address: "सेक्टर 5, मानसरोवर",
+          lat: 26.8573,
+          lng: 75.7693,
+          contactName: "रवि मीणा",
+          contactPhone: "9829002211",
+          ownerRadius: 4,
+          available: true,
+        },
+        {
+          id: "seed-vai",
+          ownerId: "seed-anil",
+          title: "वैशाली 2 BHK",
+          roomType: "2 BHK",
+          rent: 18000,
+          furnishing: "बिना फर्नीचर",
+          address: "वैशाली नगर, जयपुर",
+          lat: 26.9118,
+          lng: 75.7439,
+          contactName: "अनिल जैन",
+          contactPhone: "9414003344",
+          ownerRadius: 2,
+          available: true,
+        },
+      ];
+
+      function load() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (raw) return JSON.parse(raw);
+        } catch (_) {}
+        return null;
+      }
+      function fresh() {
+        return {
+          users: [
+            {
+              id: "demo-riya",
+              name: "रिया",
+              email: "riya@aaspaas.demo",
+              password: "demo1234",
+              phone: "9988776655",
+              role: "tenant",
+              address: "एमआई रोड के पास, जयपुर",
+              lat: JAIPUR.lat,
+              lng: JAIPUR.lng,
+              radiusKm: 3,
+            },
+          ],
+          sessionId: null,
+          listings: SEED_LISTINGS,
+          alerts: [],
+          presence: {},
+          activity: [],
+        };
+      }
+      let db = load() || fresh();
+      function save() {
+        localStorage.setItem(KEY, JSON.stringify(db));
+      }
+      function uid() {
+        return Math.random().toString(36).slice(2, 10);
+      }
+      function esc(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" }[c]));
+      }
+      function kmBetween(aLat, aLng, bLat, bLng) {
+        const R = 6371;
+        const dLat = ((bLat - aLat) * Math.PI) / 180;
+        const dLng = ((bLng - aLng) * Math.PI) / 180;
+        const s =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+      }
+      function inr(n) {
+        return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+      }
+      function phoneFmt(ten) {
+        const d = String(ten || "").replace(/\D/g, "").slice(-10);
+        if (d.length !== 10) return esc(ten);
+        return "+91 " + d.slice(0, 5) + " " + d.slice(5);
+      }
+      function kmFmt(km) {
+        if (km < 0.05) return "यहीं";
+        return (km < 10 ? km.toFixed(1) : km.toFixed(0)) + " किमी";
+      }
+      function me() {
+        return db.users.find((u) => u.id === db.sessionId) || null;
+      }
+      function log(kind, detail) {
+        db.activity.unshift({ id: uid(), at: new Date().toISOString(), kind, detail, actor: me()?.name || "मेहमान" });
+        db.activity = db.activity.slice(0, 40);
+      }
+
+      let view = "home";
+      let pin = { ...JAIPUR };
+      let tracking = false;
+      let watchId = null;
+      let map, marker, circle, roomLayer;
+      let formError = "";
+      let mode = "up";
+      let freshUnlocks = [];
+
+      function go(next) {
+        view = next;
+        formError = "";
+        const user = me();
+        if (user && user.lat != null) pin = { lat: user.lat, lng: user.lng };
+        paint();
+      }
+
+      function ensureDemo() {
+        let user = db.users.find((u) => u.id === "demo-riya");
+        if (!user) {
+          user = fresh().users[0];
+          db.users.push(user);
+        }
+        db.sessionId = user.id;
+        for (const seed of SEED_LISTINGS) {
+          if (!db.listings.some((l) => l.id === seed.id)) db.listings.push(seed);
+        }
+        pin = { lat: user.lat, lng: user.lng };
+        log("demo", "डेमो अकाउंट खुला");
+        save();
+        view = "board";
+        paint();
+      }
+
+      function signOut() {
+        db.sessionId = null;
+        stopTrack();
+        save();
+        view = "home";
+        paint();
+      }
+
+      function stopTrack() {
+        tracking = false;
+        if (watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+
+      function matchesFor(user) {
+        if (!user) return [];
+        return db.listings
+          .filter((l) => l.available !== false)
+          .map((l) => {
+            const distance = kmBetween(pin.lat, pin.lng, l.lat, l.lng);
+            const unlockKm = Math.min(user.radiusKm, l.ownerRadius);
+            const isMine = l.ownerId === user.id;
+            const inRange = isMine || distance <= unlockKm + 0.02;
+            return { ...l, distance, unlockKm, isMine, inRange };
+          })
+          .sort((a, b) => a.distance - b.distance);
+      }
+
+      function scan(user) {
+        const list = matchesFor(user);
+        const entered = [];
+        for (const item of list) {
+          const key = user.id + ":" + item.id;
+          const was = !!db.presence[key];
+          if (item.inRange && !was && !item.isMine) {
+            const alert = {
+              id: uid(),
+              userId: user.id,
+              listingId: item.id,
+              title: item.title,
+              contactName: item.contactName,
+              contactPhone: item.contactPhone,
+              rent: item.rent,
+              address: item.address,
+              at: new Date().toISOString(),
+            };
+            db.alerts.unshift(alert);
+            entered.push(alert);
+            log("enter", item.title + " रेंज में");
+          }
+          if (!item.inRange && was) log("exit", item.title + " रेंज से बाहर");
+          db.presence[key] = item.inRange;
+        }
+        if (entered.length) freshUnlocks = entered;
+        save();
+        return list;
+      }
+
+      function paint() {
+        const user = me();
+        const root = document.getElementById("app");
+        if (view === "home" && !user) {
+          root.innerHTML = homeHtml();
+          bindHome();
+          return;
+        }
+        if (view === "login" || (!user && view !== "home")) {
+          root.innerHTML = loginHtml();
+          bindLogin();
+          return;
+        }
+        if (!user) {
+          view = "home";
+          paint();
+          return;
+        }
+        const list = view === "board" ? scan(user) : matchesFor(user);
+        root.innerHTML = shellHtml(user, list);
+        bindShell(user, list);
+        if (view === "board") mountMap(user, list);
+      }
+
+      function homeHtml() {
+        return `
+        <main class="wrap" style="padding-bottom:2.5rem">
+          <header class="top"><span class="brand">AasPaas</span><span class="muted">जयपुर</span></header>
+          <p class="kicker">किरायेदार × मकान मालिक</p>
+          <h1 class="hero">घेरे में कदम रखते ही कमरा और नंबर।</h1>
+          <p class="lede muted">दोनों अपनी जगह और 1 से 10 किमी की रेंज रखते हैं। अंदर आते ही संपर्क खुलता है। बाहर नंबर छिपा रहता है।</p>
+          <div class="row" style="margin-top:1.2rem">
+            <button class="btn" id="demo">डेमो घेरा खोलें</button>
+            <button class="btn ghost" id="to-login">अकाउंट बनाएँ</button>
+          </div>
+          <div class="map" id="home-map" style="margin-top:1.4rem"></div>
+          <p class="muted" style="font-size:.8rem;margin-top:.4rem">उदाहरण घेरा, जयपुर · 3 किमी</p>
+          <div class="grid three" style="margin-top:1rem">
+            <article class="card"><h2>प्रोफ़ाइल</h2><p class="muted">पता लिखें। लोकेशन ऑटो डिटेक्ट होती है, या पिन खींचें।</p></article>
+            <article class="card"><h2>रेंज</h2><p class="muted">स्लाइडर से 1 से 10 किलोमीटर का घेरा सेट करें।</p></article>
+            <article class="card"><h2>जियोफेंस</h2><p class="muted">रेंज में आते ही कमरे और संपर्क अलर्ट में चले जाते हैं।</p></article>
+          </div>
+          <p class="muted" style="margin-top:1.2rem;font-size:.9rem">यह लाइव पेज आपके ब्राउज़र में चलता है, इसलिए अकाउंट और कमरे इसी फ़ोन पर सेव रहते हैं। Gmail वाला पूरा सर्वर-अकाउंट बिल्डर वाले ऐप में है।</p>
+        </main>`;
+      }
+
+      function loginHtml() {
+        return `
+        <main class="wrap" style="padding:2rem 0 3rem;max-width:24rem">
+          <a class="brand" href="#" id="back-home">AasPaas</a>
+          <h1 style="font-size:2.4rem;margin-top:1.2rem">${mode === "up" ? "अकाउंट बनाएँ" : "साइन इन"}</h1>
+          <p class="muted">पहला अकाउंट इसी ब्राउज़र में बनता है। डेमो: riya@aaspaas.demo / demo1234</p>
+          <form id="auth" class="grid" style="margin-top:1rem">
+            ${mode === "up" ? `<label>नाम<input name="name" autocomplete="name" required /></label>` : ""}
+            <label>ईमेल<input name="email" type="email" autocomplete="email" required /></label>
+            <label>पासवर्ड<input name="password" type="password" minlength="8" autocomplete="${mode === "up" ? "new-password" : "current-password"}" required /></label>
+            ${formError ? `<p class="err">${esc(formError)}</p>` : ""}
+            <button class="btn" type="submit">${mode === "up" ? "अकाउंट बनाएँ" : "साइन इन"}</button>
+            <button class="btn ghost" type="button" id="swap">${mode === "up" ? "पहले से अकाउंट है? साइन इन" : "नया अकाउंट"}</button>
+            <button class="btn ghost" type="button" id="demo2">डेमो से अंदर जाएँ</button>
+          </form>
+        </main>`;
+      }
+
+      function shellHtml(user, list) {
+        const inside = list.filter((m) => m.inRange && !m.isMine).length;
+        const nav = [
+          ["board", "रेंज"],
+          ["alerts", "अलर्ट"],
+          ["listings", "कमरे"],
+          ["profile", "प्रोफ़ाइल"],
+        ];
+        if (user.role === "admin") nav.push(["admin", "एडमिन"]);
+        return `
+        <div style="min-height:100vh;display:flex;flex-direction:column">
+          <header class="wrap top">
+            <span class="brand">AasPaas</span>
+            <span class="row" style="align-items:center">
+              <span class="chip" style="cursor:default">${user.radiusKm} किमी</span>
+              <button class="chip" id="out">बाहर</button>
+            </span>
+          </header>
+          <main class="wrap" style="flex:1;padding-bottom:1rem">
+            ${view === "board" ? boardHtml(user, list, inside) : ""}
+            ${view === "alerts" ? alertsHtml(user) : ""}
+            ${view === "listings" ? listingsHtml(user) : ""}
+            ${view === "profile" ? profileHtml(user) : ""}
+            ${view === "admin" ? adminHtml() : ""}
+          </main>
+          <nav class="dock" style="grid-template-columns:repeat(${nav.length},1fr)">
+            ${nav.map(([id, label]) => `<button type="button" data-nav="${id}" class="${view === id ? "on" : ""}">${label}</button>`).join("")}
+          </nav>
+        </div>`;
+      }
+
+      function boardHtml(user, list, inside) {
+        const cards = list
+          .map((m) => {
+            const open = m.inRange;
+            return `<article class="card ${open && !m.isMine ? "unlock" : ""}">
+              <div class="row" style="justify-content:space-between;align-items:baseline">
+                <h2>${esc(m.title)}</h2>
+                <strong>${inr(m.rent)}</strong>
+              </div>
+              <p class="muted" style="margin:.3rem 0">${esc(m.roomType)} · ${esc(m.furnishing)} · ${kmFmt(m.distance)} · सीमा ${m.unlockKm} किमी</p>
+              ${
+                open
+                  ? `<p style="margin:.4rem 0">${esc(m.address)}</p>
+                     <p><strong>${m.isMine ? "आपका कमरा" : esc(m.contactName)}</strong>${m.isMine ? "" : " · " + phoneFmt(m.contactPhone)}</p>
+                     ${
+                       m.isMine
+                         ? ""
+                         : `<div class="row">
+                              <a class="btn" href="tel:+91${String(m.contactPhone).replace(/\D/g, "").slice(-10)}">कॉल</a>
+                              <a class="btn ghost" target="_blank" rel="noreferrer" href="https://wa.me/91${String(m.contactPhone).replace(/\D/g, "").slice(-10)}">WhatsApp</a>
+                            </div>`
+                     }`
+                  : `<p class="row" style="align-items:center;gap:.4rem"><span class="muted">संपर्क बंद है। पिन को ${kmFmt(Math.max(0, m.distance - m.unlockKm))} और पास लाएँ।</span></p>`
+              }
+            </article>`;
+          })
+          .join("");
+        const banner = freshUnlocks
+          .map((a) => `<p><strong>${esc(a.title)}</strong> · ${esc(a.contactName)} · ${phoneFmt(a.contactPhone)}</p>`)
+          .join("");
+        return `
+          <div class="row" style="justify-content:space-between;align-items:end">
+            <div>
+              <h1 style="font-size:2rem">आपका घेरा</h1>
+              <p class="muted" style="margin:.2rem 0">काली पिन खींचें। हरा कमरा रेंज के अंदर है।</p>
+            </div>
+            <div style="text-align:right"><div class="stat">${inside}</div><span class="muted">अंदर</span></div>
+          </div>
+          <div class="map" id="board-map" style="margin:.8rem 0"></div>
+          <div class="chips">
+            <button class="chip ${tracking ? "on" : ""}" id="live">${tracking ? "लाइव चल रहा है" : "लाइव लोकेशन"}</button>
+            ${SPOTS.map((s) => `<button class="chip" data-spot="${s.id}">${s.name}</button>`).join("")}
+          </div>
+          ${banner ? `<section class="card unlock" style="margin-top:.8rem"><p class="kicker">अभी अनलॉक हुआ</p>${banner}</section>` : ""}
+          <div class="grid" style="margin-top:.8rem">${cards || `<section class="card"><h2>घेरे में अभी कोई कमरा नहीं।</h2><p class="muted">कमरा जोड़ें, फिर पिन पास ले जाएँ।</p></section>`}</div>`;
+      }
+
+      function alertsHtml(user) {
+        const mine = db.alerts.filter((a) => a.userId === user.id);
+        if (!mine.length) {
+          return `<h1 style="font-size:2rem">अलर्ट</h1><p class="muted">अभी कोई अनलॉक नहीं। रेंज में घुसते ही संपर्क यहाँ आ जाएगा।</p>`;
+        }
+        return `<h1 style="font-size:2rem">अलर्ट</h1><div class="grid" style="margin-top:.8rem">${mine
+          .map(
+            (a) => `<article class="card unlock">
+              <h2>${esc(a.title)}</h2>
+              <p>${esc(a.contactName)} · ${phoneFmt(a.contactPhone)}</p>
+              <p class="muted">${esc(a.address)} · ${inr(a.rent)}</p>
+              <div class="row">
+                <a class="btn" href="tel:+91${String(a.contactPhone).replace(/\D/g, "").slice(-10)}">कॉल</a>
+                <a class="btn ghost" target="_blank" rel="noreferrer" href="https://wa.me/91${String(a.contactPhone).replace(/\D/g, "").slice(-10)}">WhatsApp</a>
+              </div>
+            </article>`,
+          )
+          .join("")}</div>`;
+      }
+
+      function listingsHtml(user) {
+        const mine = db.listings.filter((l) => l.ownerId === user.id);
+        return `
+          <h1 style="font-size:2rem">कमरे</h1>
+          <p class="muted">नया कमरा आपकी मौजूदा पिन पर बनेगा। संपर्क तभी खुलेगा जब कोई आपकी रेंज में आए।</p>
+          <form id="room" class="grid" style="margin-top:.8rem">
+            <label>शीर्षक<input name="title" required placeholder="उदाहरण: 1 BHK, सी-स्कीम" /></label>
+            <label>किराया (₹ / महीना)<input name="rent" type="number" min="500" max="500000" required value="8000" /></label>
+            <label>पता<input name="address" required placeholder="मोहल्ला, जयपुर" /></label>
+            <label>संपर्क नाम<input name="contactName" required value="${esc(user.name)}" /></label>
+            <label>मोबाइल<input name="contactPhone" required inputmode="numeric" placeholder="10 अंक" value="${esc(user.phone || "")}" /></label>
+            ${formError ? `<p class="err">${esc(formError)}</p>` : ""}
+            <button class="btn" type="submit">कमरा जोड़ें</button>
+          </form>
+          <div class="grid" style="margin-top:1rem">
+            ${
+              mine.length
+                ? mine
+                    .map(
+                      (l) => `<article class="card">
+                        <h2>${esc(l.title)}</h2>
+                        <p class="muted">${inr(l.rent)} · ${esc(l.address)}</p>
+                        <button class="chip" data-del="${l.id}">हटाएँ</button>
+                      </article>`,
+                    )
+                    .join("")
+                : `<p class="muted">आपका कोई कमरा नहीं।</p>`
+            }
+          </div>`;
+      }
+
+      function profileHtml(user) {
+        const adminExists = db.users.some((u) => u.role === "admin");
+        return `
+          <h1 style="font-size:2rem">प्रोफ़ाइल</h1>
+          <p class="muted">मोबाइल सिर्फ़ रेंज के अंदर दूसरे को दिखेगा। डेटा इस ब्राउज़र में रहता है।</p>
+          <form id="profile" class="grid" style="margin-top:.8rem">
+            <label>नाम<input name="name" required value="${esc(user.name)}" /></label>
+            <label>मोबाइल<input name="phone" required inputmode="numeric" value="${esc(user.phone || "")}" /></label>
+            <label>भूमिका
+              <select name="role">
+                <option value="tenant" ${user.role === "tenant" ? "selected" : ""}>किरायेदार</option>
+                <option value="landlord" ${user.role === "landlord" ? "selected" : ""}>मकान मालिक</option>
+              </select>
+            </label>
+            <label>पता<input name="address" value="${esc(user.address || "")}" /></label>
+            <label>रेंज: <strong id="rlabel">${user.radiusKm} किमी</strong>
+              <input name="radius" type="range" min="1" max="10" step="1" value="${user.radiusKm}" />
+            </label>
+            <p class="muted">पिन: ${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}</p>
+            ${formError ? `<p class="err">${esc(formError)}</p>` : ""}
+            <div class="row">
+              <button class="btn ghost" type="button" id="detect">लोकेशन लो</button>
+              <button class="btn" type="submit">सेव</button>
+            </div>
+          </form>
+          ${
+            user.role === "admin"
+              ? `<p class="muted" style="margin-top:1rem">आप एडमिन हैं। नीचे टैब में सारी गतिविधि है।</p>`
+              : adminExists
+                ? ""
+                : `<button class="btn ghost" id="claim" style="margin-top:1rem" type="button">एडमिन बनें</button>`
+          }`;
+      }
+
+      function adminHtml() {
+        return `
+          <h1 style="font-size:2rem">एडमिन</h1>
+          <div class="grid three" style="margin:.8rem 0">
+            <article class="card"><div class="stat">${db.users.length}</div><p class="muted">लोग</p></article>
+            <article class="card"><div class="stat">${db.listings.length}</div><p class="muted">कमरे</p></article>
+            <article class="card"><div class="stat">${db.alerts.length}</div><p class="muted">अनलॉक</p></article>
+          </div>
+          <div class="grid">
+            ${
+              db.activity.length
+                ? db.activity
+                    .map(
+                      (a) =>
+                        `<article class="card"><strong>${esc(a.kind)}</strong> · ${esc(a.actor)}<p class="muted">${esc(a.detail)}</p></article>`,
+                    )
+                    .join("")
+                : `<p class="muted">अभी गतिविधि नहीं।</p>`
+            }
+          </div>`;
+      }
+
+      function bindHome() {
+        document.getElementById("demo").onclick = ensureDemo;
+        document.getElementById("to-login").onclick = () => {
+          mode = "up";
+          go("login");
+        };
+        const homeMap = L.map("home-map", { zoomControl: false, attributionControl: false }).setView([JAIPUR.lat, JAIPUR.lng], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(homeMap);
+        L.circle([JAIPUR.lat, JAIPUR.lng], { radius: 3000, color: "#3f5344", weight: 1, fillColor: "#3f5344", fillOpacity: 0.12 }).addTo(homeMap);
+        setTimeout(() => homeMap.invalidateSize(), 50);
+      }
+
+      function bindLogin() {
+        document.getElementById("back-home").onclick = (e) => {
+          e.preventDefault();
+          go("home");
+        };
+        document.getElementById("swap").onclick = () => {
+          mode = mode === "up" ? "in" : "up";
+          formError = "";
+          paint();
+        };
+        document.getElementById("demo2").onclick = ensureDemo;
+        document.getElementById("auth").onsubmit = (e) => {
+          e.preventDefault();
+          const data = Object.fromEntries(new FormData(e.target));
+          const email = String(data.email || "").trim().toLowerCase();
+          const password = String(data.password || "");
+          if (!email.includes("@") || password.length < 8) {
+            formError = "ईमेल सही हो और पासवर्ड कम से कम 8 अक्षर का।";
+            paint();
+            return;
+          }
+          if (mode === "up") {
+            if (String(data.name || "").trim().length < 2) {
+              formError = "अपना नाम लिखें।";
+              paint();
+              return;
+            }
+            if (db.users.some((u) => u.email === email)) {
+              formError = "यह ईमेल पहले से है। साइन इन करें।";
+              paint();
+              return;
+            }
+            const user = {
+              id: uid(),
+              name: String(data.name).trim(),
+              email,
+              password,
+              phone: "",
+              role: "tenant",
+              address: "",
+              lat: JAIPUR.lat,
+              lng: JAIPUR.lng,
+              radiusKm: 3,
+            };
+            db.users.push(user);
+            db.sessionId = user.id;
+            log("signup", email);
+            save();
+            view = "profile";
+            pin = { lat: user.lat, lng: user.lng };
+            paint();
+            return;
+          }
+          const user = db.users.find((u) => u.email === email && u.password === password);
+          if (!user) {
+            formError = "ईमेल या पासवर्ड नहीं मिला।";
+            paint();
+            return;
+          }
+          db.sessionId = user.id;
+          log("signin", email);
+          save();
+          view = user.phone ? "board" : "profile";
+          pin = { lat: user.lat, lng: user.lng };
+          paint();
+        };
+      }
+
+      function bindShell(user, list) {
+        document.getElementById("out").onclick = signOut;
+        document.querySelectorAll("[data-nav]").forEach((btn) => {
+          btn.onclick = () => {
+            freshUnlocks = [];
+            view = btn.dataset.nav;
+            paint();
+          };
+        });
+        if (view === "board") {
+          document.getElementById("live").onclick = () => {
+            if (tracking) {
+              stopTrack();
+              paint();
+              return;
+            }
+            if (!navigator.geolocation) return;
+            tracking = true;
+            watchId = navigator.geolocation.watchPosition(
+              (pos) => {
+                pin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                const u = me();
+                if (u) {
+                  u.lat = pin.lat;
+                  u.lng = pin.lng;
+                  save();
+                }
+                paint();
+              },
+              () => {
+                stopTrack();
+                paint();
+              },
+              { enableHighAccuracy: true, maximumAge: 5000 },
+            );
+            paint();
+          };
+          document.querySelectorAll("[data-spot]").forEach((btn) => {
+            btn.onclick = () => {
+              const spot = SPOTS.find((s) => s.id === btn.dataset.spot);
+              if (!spot) return;
+              stopTrack();
+              pin = { lat: spot.lat, lng: spot.lng };
+              user.lat = pin.lat;
+              user.lng = pin.lng;
+              save();
+              paint();
+            };
+          });
+        }
+        if (view === "listings") {
+          document.getElementById("room").onsubmit = (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target));
+            const phone = String(data.contactPhone || "").replace(/\D/g, "").slice(-10);
+            if (!/^[6-9]\d{9}$/.test(phone)) {
+              formError = "10 अंक का भारतीय मोबाइल लिखें।";
+              paint();
+              return;
+            }
+            db.listings.push({
+              id: uid(),
+              ownerId: user.id,
+              title: String(data.title).trim(),
+              roomType: "कमरा",
+              rent: Number(data.rent),
+              furnishing: "सेमी-फर्निश्ड",
+              address: String(data.address).trim(),
+              lat: pin.lat,
+              lng: pin.lng,
+              contactName: String(data.contactName).trim(),
+              contactPhone: phone,
+              ownerRadius: user.radiusKm,
+              available: true,
+            });
+            formError = "";
+            log("listing", String(data.title).trim());
+            save();
+            view = "board";
+            paint();
+          };
+          document.querySelectorAll("[data-del]").forEach((btn) => {
+            btn.onclick = () => {
+              db.listings = db.listings.filter((l) => l.id !== btn.dataset.del);
+              log("delete", "कमरा हटा");
+              save();
+              paint();
+            };
+          });
+        }
+        if (view === "profile") {
+          const range = document.querySelector('input[name="radius"]');
+          range.oninput = () => {
+            document.getElementById("rlabel").textContent = range.value + " किमी";
+          };
+          document.getElementById("detect").onclick = () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition((pos) => {
+              pin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              paint();
+            });
+          };
+          const claim = document.getElementById("claim");
+          if (claim) {
+            claim.onclick = () => {
+              user.role = "admin";
+              log("admin", "एडमिन क्लेम");
+              save();
+              paint();
+            };
+          }
+          document.getElementById("profile").onsubmit = (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(e.target));
+            const phone = String(data.phone || "").replace(/\D/g, "").slice(-10);
+            if (!/^[6-9]\d{9}$/.test(phone)) {
+              formError = "10 अंक का भारतीय मोबाइल लिखें।";
+              paint();
+              return;
+            }
+            user.name = String(data.name).trim();
+            user.phone = phone;
+            user.role = user.role === "admin" ? "admin" : data.role === "landlord" ? "landlord" : "tenant";
+            user.address = String(data.address || "").trim();
+            user.radiusKm = Number(data.radius);
+            user.lat = pin.lat;
+            user.lng = pin.lng;
+            formError = "";
+            log("profile", user.name);
+            save();
+            view = "board";
+            paint();
+          };
+        }
+      }
+
+      function mountMap(user, list) {
+        map = L.map("board-map", { zoomControl: false }).setView([pin.lat, pin.lng], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+        circle = L.circle([pin.lat, pin.lng], {
+          radius: user.radiusKm * 1000,
+          color: "#3f5344",
+          weight: 1.5,
+          fillColor: "#3f5344",
+          fillOpacity: 0.12,
+        }).addTo(map);
+        const icon = L.divIcon({ className: "", html: '<div class="pin-me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] });
+        marker = L.marker([pin.lat, pin.lng], { draggable: true, icon }).addTo(map);
+        marker.on("dragend", () => {
+          const p = marker.getLatLng();
+          stopTrack();
+          pin = { lat: p.lat, lng: p.lng };
+          user.lat = pin.lat;
+          user.lng = pin.lng;
+          save();
+          paint();
+        });
+        roomLayer = L.layerGroup().addTo(map);
+        for (const m of list) {
+          const roomIcon = L.divIcon({
+            className: "",
+            html: `<div class="pin-room ${m.inRange ? "" : "out"}"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          });
+          L.marker([m.lat, m.lng], { icon: roomIcon }).addTo(roomLayer).bindTooltip(m.title);
+        }
+        setTimeout(() => map.invalidateSize(), 40);
+      }
+
+      paint();
+    </script>
+  </body>
+</html>
