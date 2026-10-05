@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { LocateFixed } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, useAas } from "@/components/app-shell";
 import { RadiusSlider } from "@/components/radius-slider";
 import { RangeMap } from "@/components/range-map";
 import { claimAdmin, saveProfile, stepDownAdmin } from "@/lib/aaspaas.functions";
+import { SEEKER_TYPES } from "@/lib/copy";
+import type { SeekerTypeId } from "@/lib/copy";
 import { JAIPUR, SPOTS } from "@/lib/geo";
 
 export const Route = createFileRoute("/profile")({ component: ProfilePage });
@@ -20,9 +22,14 @@ function ProfilePage() {
 
 function ProfileForm() {
   const { profile, adminExists, refresh } = useAas();
+  const router = useRouter();
+  const [picked, setPicked] = useState(Boolean(profile));
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
   const [phone, setPhone] = useState(profile?.phone ?? "");
   const [role, setRole] = useState<"tenant" | "landlord">(profile?.role === "landlord" ? "landlord" : "tenant");
+  const [seekerType, setSeekerType] = useState<SeekerTypeId | "">(profile?.seekerType || "student");
+  const [budgetMin, setBudgetMin] = useState(profile?.budgetMin ? String(profile.budgetMin) : "");
+  const [budgetMax, setBudgetMax] = useState(profile?.budgetMax ? String(profile.budgetMax) : "");
   const [address, setAddress] = useState(profile?.address ?? "");
   const [lat, setLat] = useState(profile?.lat ?? JAIPUR.lat);
   const [lng, setLng] = useState(profile?.lng ?? JAIPUR.lng);
@@ -36,6 +43,9 @@ function ProfileForm() {
     setDisplayName(profile.displayName);
     setPhone(profile.phone);
     setRole(profile.role === "landlord" ? "landlord" : "tenant");
+    setSeekerType(profile.seekerType || "student");
+    setBudgetMin(profile.budgetMin ? String(profile.budgetMin) : "");
+    setBudgetMax(profile.budgetMax ? String(profile.budgetMax) : "");
     setAddress(profile.address);
     if (profile.lat != null && profile.lng != null) {
       setLat(profile.lat);
@@ -78,7 +88,18 @@ function ProfileForm() {
     setBusy(true);
     setError(null);
     const res = await saveProfile({
-      data: { displayName, phone, role, address, lat, lng, radiusKm },
+      data: {
+        displayName,
+        phone,
+        role,
+        address,
+        lat,
+        lng,
+        radiusKm,
+        seekerType: role === "tenant" ? seekerType || "student" : "",
+        budgetMin: Number(budgetMin) || 0,
+        budgetMax: Number(budgetMax) || 0,
+      },
     }).catch(() => ({ ok: false as const, error: "सेव नहीं हो सका।" }));
     setBusy(false);
     if (!res.ok) {
@@ -87,14 +108,53 @@ function ProfileForm() {
     }
     await refresh();
     toast("प्रोफ़ाइल सेव हो गई");
+    await router.navigate({ to: role === "landlord" ? "/listings" : "/board" });
+  }
+
+  if (!profile && !picked) {
+    return (
+      <section className="space-y-4">
+        <div>
+          <h1 className="font-display text-4xl">आप कौन हैं?</h1>
+          <p className="mt-2 text-sm text-muted">
+            अकाउंट खुल चुका है। मोबाइल नंबर अगली स्क्रीन पर सेव होगा। SMS OTP इस ऐप में नहीं भेजा जाता — उसके
+            लिए अलग से billed SMS गेटवे चाहिए।
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setRole("tenant");
+            setPicked(true);
+          }}
+          className="w-full rounded-card border border-line bg-card p-5 text-left"
+        >
+          <p className="font-display text-3xl">मैं कमरा ढूँढ रहा हूँ</p>
+          <p className="mt-1 text-sm text-muted">लोकेशन, 1–10 किमी रेंज और बजट। घेरे में मालिक का नंबर खुलेगा।</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setRole("landlord");
+            setPicked(true);
+          }}
+          className="w-full rounded-card border border-line bg-card p-5 text-left"
+        >
+          <p className="font-display text-3xl">मकान किराए पर देना है</p>
+          <p className="mt-1 text-sm text-muted">पता और पिन सेट करें, फिर कमरा, किराया और खाली/भरा स्टेटस डालें।</p>
+        </button>
+      </section>
+    );
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <div>
-        <h1 className="font-display text-4xl">प्रोफ़ाइल</h1>
+        <h1 className="font-display text-4xl">{role === "landlord" ? "मकान मालिक" : "किरायेदार"}</h1>
         <p className="mt-1 text-sm text-muted">
-          पता और पिन सेव होते हैं। मोबाइल नंबर सिर्फ़ रेंज के अंदर किरायेदार या मकान मालिक को जाता है।
+          {role === "landlord"
+            ? "नाम, नंबर और मकान की जगह। कमरे की डिटेल अगली स्क्रीन पर जाएगी।"
+            : "नाम, नंबर, बजट और कितने किलोमीटर तक कमरा चाहिए।"}
         </p>
       </div>
 
@@ -118,6 +178,48 @@ function ProfileForm() {
           className="mt-1 h-12 w-full rounded-2xl border border-line bg-card px-4"
         />
       </label>
+
+      {role === "tenant" && profile?.role !== "admin" ? (
+        <>
+          <fieldset>
+            <legend className="text-sm">प्रोफ़ाइल टाइप</legend>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {SEEKER_TYPES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSeekerType(item.id)}
+                  className={`h-12 rounded-full border text-sm ${seekerType === item.id ? "border-ink bg-ink text-paper" : "border-line bg-card"}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-sm">
+              न्यूनतम किराया
+              <input
+                inputMode="numeric"
+                value={budgetMin}
+                onChange={(e) => setBudgetMin(e.target.value)}
+                placeholder="3000"
+                className="mt-1 h-12 w-full rounded-2xl border border-line bg-card px-4"
+              />
+            </label>
+            <label className="block text-sm">
+              अधिकतम किराया
+              <input
+                inputMode="numeric"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+                placeholder="12000"
+                className="mt-1 h-12 w-full rounded-2xl border border-line bg-card px-4"
+              />
+            </label>
+          </div>
+        </>
+      ) : null}
 
       {profile?.role === "admin" ? (
         <p className="rounded-card bg-olive-soft px-4 py-3 text-sm text-olive">

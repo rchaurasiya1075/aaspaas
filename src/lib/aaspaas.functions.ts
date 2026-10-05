@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getSql, type Sql } from "@/lib/db";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { distanceKm, validCoord } from "@/lib/geo";
-import type { FurnishingId, RoomTypeId } from "@/lib/copy";
+import type { FurnishingId, RoomTypeId, SeekerTypeId } from "@/lib/copy";
 
 export type Profile = {
   displayName: string;
@@ -12,6 +12,9 @@ export type Profile = {
   lat: number | null;
   lng: number | null;
   radiusKm: number;
+  seekerType: "" | SeekerTypeId;
+  budgetMin: number;
+  budgetMax: number;
 };
 
 export type Match = {
@@ -30,6 +33,9 @@ export type Match = {
   address: string | null;
   contactName: string | null;
   contactPhone: string | null;
+  depositInr: number;
+  amenities: string;
+  photo: string | null;
 };
 
 export type EnteredAlert = {
@@ -54,6 +60,13 @@ export type Listing = {
   contactName: string;
   contactPhone: string;
   available: boolean;
+  depositInr: number;
+  amenities: string;
+  houseNo: string;
+  area: string;
+  city: string;
+  pincode: string;
+  photos: string[];
 };
 
 export type AlertRow = {
@@ -109,6 +122,9 @@ type ProfileRow = {
   lat: number | null;
   lng: number | null;
   radius_km: number;
+  seeker_type: string;
+  budget_min: number;
+  budget_max: number;
 };
 
 function mapProfile(r: ProfileRow): Profile {
@@ -121,6 +137,9 @@ function mapProfile(r: ProfileRow): Profile {
     lat: num(r.lat),
     lng: num(r.lng),
     radiusKm: num(r.radius_km) ?? 3,
+    seekerType: r.seeker_type === "student" || r.seeker_type === "working" || r.seeker_type === "family" ? r.seeker_type : "",
+    budgetMin: num(r.budget_min) ?? 0,
+    budgetMax: num(r.budget_max) ?? 0,
   };
 }
 
@@ -132,7 +151,7 @@ export const getMe = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const rows = await sql<ProfileRow>`select user_id, display_name, phone, role, address, lat, lng, radius_km from profiles where user_id = ${context.userId}`;
+    const rows = await sql<ProfileRow>`select user_id, display_name, phone, role, address, lat, lng, radius_km, seeker_type, budget_min, budget_max from profiles where user_id = ${context.userId}`;
     const admins = await sql<{ n: number }>`select count(*) as n from profiles where role = 'admin'`;
     return {
       profile: rows[0] ? mapProfile(rows[0]) : null,
@@ -148,6 +167,9 @@ type ProfileInput = {
   lat: number;
   lng: number;
   radiusKm: number;
+  seekerType: "" | SeekerTypeId;
+  budgetMin: number;
+  budgetMax: number;
 };
 
 export const saveProfile = createServerFn({ method: "POST" })
@@ -161,6 +183,12 @@ export const saveProfile = createServerFn({ method: "POST" })
     const lat = num(data?.lat);
     const lng = num(data?.lng);
     const requested = data?.role === "landlord" ? "landlord" : "tenant";
+    const seekerType =
+      requested === "tenant" && (data?.seekerType === "student" || data?.seekerType === "working" || data?.seekerType === "family")
+        ? data.seekerType
+        : "";
+    const budgetMin = Math.max(0, Math.round(num(data?.budgetMin) ?? 0));
+    const budgetMax = Math.max(0, Math.round(num(data?.budgetMax) ?? 0));
     if (displayName.length < 2 || displayName.length > 60) {
       return { ok: false as const, error: "नाम 2 से 60 अक्षरों का होना चाहिए।" };
     }
@@ -172,12 +200,21 @@ export const saveProfile = createServerFn({ method: "POST" })
     if (lat === null || lng === null || !validCoord(lat, lng)) {
       return { ok: false as const, error: "लोकेशन सेट नहीं हुई। पिन हिलाएँ या इलाका चुनें।" };
     }
+    if (requested === "tenant" && !seekerType) {
+      return { ok: false as const, error: "स्टूडेंट, वर्किंग या फैमिली चुनें।" };
+    }
+    if (budgetMin > 0 && budgetMax > 0 && budgetMin > budgetMax) {
+      return { ok: false as const, error: "बजट की शुरूआत अंत से कम हो।" };
+    }
+    if (budgetMax > 500000 || budgetMin > 500000) {
+      return { ok: false as const, error: "बजट 5,00,000 तक रखें।" };
+    }
     const sql = await getSql();
     const existing = await sql<{ role: string }>`select role from profiles where user_id = ${context.userId}`;
     const role = existing[0]?.role === "admin" ? "admin" : requested;
     await sql`
-      insert into profiles (user_id, display_name, phone, role, address, lat, lng, radius_km)
-      values (${context.userId}, ${displayName}, ${phone}, ${role}, ${address}, ${lat}, ${lng}, ${radiusKm})
+      insert into profiles (user_id, display_name, phone, role, address, lat, lng, radius_km, seeker_type, budget_min, budget_max)
+      values (${context.userId}, ${displayName}, ${phone}, ${role}, ${address}, ${lat}, ${lng}, ${radiusKm}, ${seekerType}, ${requested === "tenant" ? budgetMin : 0}, ${requested === "tenant" ? budgetMax : 0})
       on conflict (user_id) do update set
         display_name = excluded.display_name,
         phone = excluded.phone,
@@ -186,6 +223,9 @@ export const saveProfile = createServerFn({ method: "POST" })
         lat = excluded.lat,
         lng = excluded.lng,
         radius_km = excluded.radius_km,
+        seeker_type = excluded.seeker_type,
+        budget_min = excluded.budget_min,
+        budget_max = excluded.budget_max,
         updated_at = now()
     `;
     await logActivity(sql, context.userId, "profile_saved", `${displayName} ने प्रोफ़ाइल सेव की · ${radiusKm} किमी`);
@@ -238,6 +278,13 @@ type ListingInput = {
   lng: number;
   contactName: string;
   contactPhone: string;
+  depositInr: number;
+  amenities: string;
+  houseNo: string;
+  area: string;
+  city: string;
+  pincode: string;
+  photos: string[];
 };
 
 function readListing(data: ListingInput) {
@@ -258,21 +305,45 @@ function readListing(data: ListingInput) {
     return { error: "किराया 500 से 5,00,000 के बीच होना चाहिए।" };
   }
   if (description.length > 600) return { error: "विवरण छोटा रखें।" };
-  if (address.length < 4 || address.length > 180) return { error: "कमरे का पता लिखें।" };
+  if (address.length > 180) return { error: "पता छोटा रखें।" };
   if (contactName.length < 2) return { error: "संपर्क नाम लिखें।" };
   if (!contactPhone) return { error: "संपर्क के लिए सही मोबाइल नंबर डालें।" };
   if (lat === null || lng === null || !validCoord(lat, lng)) return { error: "कमरे की लोकेशन सेट करें।" };
+  const deposit = Math.round(num(data?.depositInr) ?? 0);
+  if (deposit < 0 || deposit > 2000000) return { error: "डिपॉजिट 0 से 20,00,000 के बीच रखें।" };
+  const amenityIds = new Set(["parking", "wifi", "water", "bath"]);
+  const amenities = String(data?.amenities ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => amenityIds.has(s))
+    .join(",");
+  const houseNo = String(data?.houseNo ?? "").trim().slice(0, 80);
+  const area = String(data?.area ?? "").trim().slice(0, 80);
+  const city = String(data?.city ?? "").trim().slice(0, 60);
+  const pincode = String(data?.pincode ?? "").replace(/\D/g, "").slice(0, 6);
+  if (pincode && pincode.length !== 6) return { error: "पिनकोड 6 अंक का हो।" };
+  const photos = Array.isArray(data?.photos) ? data.photos.filter((p) => typeof p === "string" && p.startsWith("data:image/")).slice(0, 3) : [];
+  if (photos.some((p) => p.length > 180000)) return { error: "फ़ोटो छोटी रखें। एक फ़ोटो काफ़ी है।" };
+  const fullAddress = [houseNo, address, area, city, pincode].filter(Boolean).join(", ").slice(0, 180);
+  if (fullAddress.length < 4) return { error: "कमरे का पता लिखें।" };
   return {
     title,
     roomType,
     furnishing,
     description,
-    address,
+    address: fullAddress,
     contactName,
     contactPhone,
     rentInr: Math.round(rentInr),
     lat,
     lng,
+    deposit,
+    amenities,
+    houseNo,
+    area,
+    city,
+    pincode,
+    photos: photos.join("\n"),
   };
 }
 
@@ -289,6 +360,13 @@ type ListingRow = {
   contact_name: string;
   contact_phone: string;
   available: boolean;
+  deposit_inr: number;
+  amenities: string;
+  house_no: string;
+  area: string;
+  city: string;
+  pincode: string;
+  photos: string;
 };
 
 function mapListing(r: ListingRow): Listing {
@@ -305,6 +383,15 @@ function mapListing(r: ListingRow): Listing {
     contactName: r.contact_name,
     contactPhone: r.contact_phone,
     available: asBool(r.available),
+    depositInr: num(r.deposit_inr) ?? 0,
+    amenities: r.amenities ?? "",
+    houseNo: r.house_no ?? "",
+    area: r.area ?? "",
+    city: r.city ?? "",
+    pincode: r.pincode ?? "",
+    photos: String(r.photos ?? "")
+      .split("\n")
+      .filter((p) => p.startsWith("data:image/")),
   };
 }
 
@@ -314,7 +401,7 @@ export const listMyListings = createServerFn({ method: "GET" })
     const sql = await getSql();
     const rows = await sql<ListingRow>`
       select id, title, room_type, rent_inr, furnishing, description, address, lat, lng,
-             contact_name, contact_phone, available
+             contact_name, contact_phone, available, deposit_inr, amenities, house_no, area, city, pincode, photos
       from listings where owner_id = ${context.userId}
       order by created_at desc
     `;
@@ -347,6 +434,13 @@ export const saveListing = createServerFn({ method: "POST" })
           lng = ${parsed.lng},
           contact_name = ${parsed.contactName},
           contact_phone = ${parsed.contactPhone},
+          deposit_inr = ${parsed.deposit},
+          amenities = ${parsed.amenities},
+          house_no = ${parsed.houseNo},
+          area = ${parsed.area},
+          city = ${parsed.city},
+          pincode = ${parsed.pincode},
+          photos = ${parsed.photos},
           updated_at = now()
         where id = ${data.id} and owner_id = ${context.userId}
         returning id
@@ -357,11 +451,12 @@ export const saveListing = createServerFn({ method: "POST" })
       await sql`
         insert into listings (
           id, owner_id, title, room_type, rent_inr, furnishing, description, address,
-          lat, lng, contact_name, contact_phone
+          lat, lng, contact_name, contact_phone, deposit_inr, amenities, house_no, area, city, pincode, photos
         ) values (
           ${id}, ${context.userId}, ${parsed.title}, ${parsed.roomType}, ${parsed.rentInr},
           ${parsed.furnishing}, ${parsed.description}, ${parsed.address}, ${parsed.lat}, ${parsed.lng},
-          ${parsed.contactName}, ${parsed.contactPhone}
+          ${parsed.contactName}, ${parsed.contactPhone}, ${parsed.deposit}, ${parsed.amenities},
+          ${parsed.houseNo}, ${parsed.area}, ${parsed.city}, ${parsed.pincode}, ${parsed.photos}
         )
       `;
     }
@@ -411,6 +506,9 @@ type ScanRow = {
   contact_name: string;
   contact_phone: string;
   owner_radius: number;
+  deposit_inr: number;
+  amenities: string;
+  photos: string;
 };
 
 export const scanRange = createServerFn({ method: "POST" })
@@ -424,7 +522,7 @@ export const scanRange = createServerFn({ method: "POST" })
     }
     const sql = await getSql();
     const profiles = await sql<ProfileRow>`
-      select user_id, display_name, phone, role, address, lat, lng, radius_km
+      select user_id, display_name, phone, role, address, lat, lng, radius_km, seeker_type, budget_min, budget_max
       from profiles where user_id = ${context.userId}
     `;
     const profile = profiles[0] ? mapProfile(profiles[0]) : null;
@@ -433,7 +531,8 @@ export const scanRange = createServerFn({ method: "POST" })
     }
     const listings = await sql<ScanRow>`
       select l.id, l.owner_id, l.title, l.room_type, l.rent_inr, l.furnishing, l.description,
-             l.address, l.lat, l.lng, l.contact_name, l.contact_phone, p.radius_km as owner_radius
+             l.address, l.lat, l.lng, l.contact_name, l.contact_phone, p.radius_km as owner_radius,
+             l.deposit_inr, l.amenities, l.photos
       from listings l
       join profiles p on p.user_id = l.owner_id
       where l.available = true
@@ -452,6 +551,15 @@ export const scanRange = createServerFn({ method: "POST" })
       const km = distanceKm(lat, lng, listingLat, listingLng);
       const ownerRadius = num(row.owner_radius) ?? 3;
       const unlockKm = Math.min(profile.radiusKm, ownerRadius);
+      const mine = row.owner_id === context.userId;
+      const rent = num(row.rent_inr) ?? 0;
+      if (
+        !mine &&
+        profile.budgetMax > 0 &&
+        (rent < profile.budgetMin || rent > profile.budgetMax)
+      ) {
+        continue;
+      }
       const inRange = km <= unlockKm;
       const prev = wasInside.get(row.id) ?? false;
       if (inRange && !prev) {
@@ -507,6 +615,13 @@ export const scanRange = createServerFn({ method: "POST" })
         address: inRange ? row.address : null,
         contactName: inRange ? row.contact_name : null,
         contactPhone: inRange ? row.contact_phone : null,
+        depositInr: num(row.deposit_inr) ?? 0,
+        amenities: row.amenities ?? "",
+        photo: inRange
+          ? String(row.photos ?? "")
+              .split("\n")
+              .find((p) => p.startsWith("data:image/")) ?? null
+          : null,
       });
     }
 
@@ -666,4 +781,87 @@ export const setUserRole = createServerFn({ method: "POST" })
     if (!rows.length) return { ok: false as const, error: "यूज़र नहीं मिला।" };
     await logActivity(sql, context.userId, "role_changed", `रोल बदला → ${role}`);
     return { ok: true as const };
+  });
+
+export type Lead = {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  tenantName: string;
+  tenantPhone: string;
+  createdAt: string;
+};
+
+export const expressInterest = createServerFn({ method: "POST" })
+  .validator((data: { listingId: string }) => data)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const profiles = await sql<ProfileRow>`
+      select user_id, display_name, phone, role, address, lat, lng, radius_km, seeker_type, budget_min, budget_max
+      from profiles where user_id = ${context.userId}
+    `;
+    const profile = profiles[0] ? mapProfile(profiles[0]) : null;
+    if (!profile?.phone || profile.lat === null || profile.lng === null) {
+      return { ok: false as const, error: "पहले प्रोफ़ाइल पूरी करें।" };
+    }
+    const rooms = await sql<{
+      id: string;
+      owner_id: string;
+      title: string;
+      lat: number;
+      lng: number;
+      owner_radius: number;
+    }>`
+      select l.id, l.owner_id, l.title, l.lat, l.lng, p.radius_km as owner_radius
+      from listings l
+      join profiles p on p.user_id = l.owner_id
+      where l.id = ${data.listingId} and l.available = true
+    `;
+    const room = rooms[0];
+    if (!room) return { ok: false as const, error: "कमरा उपलब्ध नहीं है।" };
+    if (room.owner_id === context.userId) return { ok: false as const, error: "यह आपका अपना कमरा है।" };
+    const km = distanceKm(profile.lat, profile.lng, num(room.lat) ?? 0, num(room.lng) ?? 0);
+    const unlock = Math.min(profile.radiusKm, num(room.owner_radius) ?? 3);
+    if (km > unlock) return { ok: false as const, error: "रुचि सिर्फ़ रेंज के अंदर भेज सकते हैं।" };
+    const existing = await sql<{ id: string }>`
+      select id from leads where listing_id = ${room.id} and tenant_id = ${context.userId} limit 1
+    `;
+    if (!existing.length) {
+      await sql`
+        insert into leads (id, listing_id, tenant_id, tenant_name, tenant_phone)
+        values (${crypto.randomUUID()}, ${room.id}, ${context.userId}, ${profile.displayName}, ${profile.phone})
+      `;
+      await logActivity(sql, context.userId, "lead", `${profile.displayName} ने रुचि दिखाई: ${room.title}`);
+    }
+    return { ok: true as const };
+  });
+
+export const listMyLeads = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const rows = await sql<{
+      id: string;
+      listing_id: string;
+      title: string;
+      tenant_name: string;
+      tenant_phone: string;
+      created_at: string;
+    }>`
+      select d.id, d.listing_id, l.title, d.tenant_name, d.tenant_phone, d.created_at::text as created_at
+      from leads d
+      join listings l on l.id = d.listing_id
+      where l.owner_id = ${context.userId}
+      order by d.created_at desc
+      limit 40
+    `;
+    return rows.map((r) => ({
+      id: r.id,
+      listingId: r.listing_id,
+      listingTitle: r.title,
+      tenantName: r.tenant_name,
+      tenantPhone: r.tenant_phone,
+      createdAt: r.created_at,
+    }));
   });

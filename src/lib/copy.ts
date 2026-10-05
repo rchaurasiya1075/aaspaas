@@ -1,3 +1,27 @@
+export const SEEKER_TYPES = [
+  { id: "student", label: "स्टूडेंट" },
+  { id: "working", label: "वर्किंग" },
+  { id: "family", label: "फैमिली" },
+] as const;
+
+export const AMENITIES = [
+  { id: "parking", label: "पार्किंग" },
+  { id: "wifi", label: "वाई-फ़ाई" },
+  { id: "water", label: "24 घंटे पानी" },
+  { id: "bath", label: "अटैच्ड बाथरूम" },
+] as const;
+
+export type SeekerTypeId = (typeof SEEKER_TYPES)[number]["id"];
+export type AmenityId = (typeof AMENITIES)[number]["id"];
+
+export function seekerLabel(id: string): string {
+  return SEEKER_TYPES.find((s) => s.id === id)?.label ?? "";
+}
+
+export function amenityLabels(csv: string): string[] {
+  const set = new Set(csv.split(",").map((s) => s.trim()));
+  return AMENITIES.filter((a) => set.has(a.id)).map((a) => a.label);
+}
 export const ROOM_TYPES = [
   { id: "room", label: "कमरा" },
   { id: "1bhk", label: "1 BHK" },

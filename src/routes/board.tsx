@@ -4,8 +4,8 @@ import { LocateFixed, Lock, MessageCircle, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, useAas } from "@/components/app-shell";
 import { RangeMap } from "@/components/range-map";
-import { scanRange, type EnteredAlert, type Match } from "@/lib/aaspaas.functions";
-import { formatInr, formatKm, formatPhone, furnishingLabel, roomLabel } from "@/lib/copy";
+import { scanRange, expressInterest, type EnteredAlert, type Match } from "@/lib/aaspaas.functions";
+import { amenityLabels, formatInr, formatKm, formatPhone, furnishingLabel, roomLabel } from "@/lib/copy";
 import { JAIPUR, SPOTS } from "@/lib/geo";
 
 export const Route = createFileRoute("/board")({ component: BoardPage });
@@ -212,8 +212,11 @@ function Board() {
 }
 
 function RoomCard({ room }: { room: Match }) {
+  const [sent, setSent] = useState(false);
+  const perks = amenityLabels(room.amenities);
   return (
     <li className={`rounded-card border p-4 ${room.inRange ? "border-olive bg-olive-soft" : "border-line bg-card"}`}>
+      {room.photo ? <img src={room.photo} alt="" className="mb-3 h-36 w-full rounded-2xl object-cover" /> : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs text-muted">
@@ -226,7 +229,9 @@ function RoomCard({ room }: { room: Match }) {
       </div>
       <p className="mt-1 text-sm text-muted">
         {furnishingLabel(room.furnishing)} · {formatKm(room.distanceKm)} · सीमा {room.unlockKm} किमी
+        {room.depositInr ? ` · डिपॉजिट ${formatInr(room.depositInr)}` : ""}
       </p>
+      {perks.length ? <p className="mt-1 text-xs text-muted">{perks.join(" · ")}</p> : null}
       {room.description ? <p className="mt-2 text-sm">{room.description}</p> : null}
       {room.inRange && room.contactPhone && room.contactName ? (
         <div className="mt-3 space-y-2">
@@ -234,13 +239,13 @@ function RoomCard({ room }: { room: Match }) {
             {room.contactName}
             {room.address ? ` · ${room.address}` : ""}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a
               href={`tel:+91${room.contactPhone}`}
               className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-4 text-sm text-paper"
             >
               <Phone className="size-4" />
-              {formatPhone(room.contactPhone)}
+              कॉल
             </a>
             <a
               href={`https://wa.me/91${room.contactPhone}`}
@@ -249,6 +254,27 @@ function RoomCard({ room }: { room: Match }) {
               <MessageCircle className="size-4" />
               WhatsApp
             </a>
+            {!room.isMine ? (
+              <button
+                type="button"
+                disabled={sent}
+                className="h-11 rounded-full border border-line bg-card px-4 text-sm disabled:opacity-60"
+                onClick={() => {
+                  void expressInterest({ data: { listingId: room.id } })
+                    .then((res) => {
+                      if (!res.ok) {
+                        toast(res.error);
+                        return;
+                      }
+                      setSent(true);
+                      toast("मालिक को रुचि पहुँच गई");
+                    })
+                    .catch(() => toast("रुचि नहीं गई"));
+                }}
+              >
+                {sent ? "रुचि भेज दी" : "रुचि दिखाएँ"}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : (

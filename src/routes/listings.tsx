@@ -6,11 +6,14 @@ import { RangeMap } from "@/components/range-map";
 import {
   deleteListing,
   listMyListings,
+  listMyLeads,
   saveListing,
   setListingAvailable,
+  type Lead,
   type Listing,
 } from "@/lib/aaspaas.functions";
-import { FURNISHING, ROOM_TYPES, formatInr, formatPhone, furnishingLabel, roomLabel } from "@/lib/copy";
+import { Bath, Car, Droplets, Wifi } from "lucide-react";
+import { AMENITIES, FURNISHING, ROOM_TYPES, amenityLabels, formatInr, formatPhone, furnishingLabel, roomLabel } from "@/lib/copy";
 import type { FurnishingId, RoomTypeId } from "@/lib/copy";
 import { JAIPUR, SPOTS } from "@/lib/geo";
 
@@ -34,11 +37,21 @@ const empty = {
   address: "",
   contactName: "",
   contactPhone: "",
+  depositInr: "",
+  houseNo: "",
+  area: "",
+  city: "",
+  pincode: "",
+  amenities: [] as string[],
+  photos: [] as string[],
 };
+
+const AMENITY_ICON = { parking: Car, wifi: Wifi, water: Droplets, bath: Bath } as const;
 
 function Listings() {
   const { profile } = useAas();
   const [rows, setRows] = useState<Listing[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [form, setForm] = useState(empty);
   const [lat, setLat] = useState(profile?.lat ?? JAIPUR.lat);
   const [lng, setLng] = useState(profile?.lng ?? JAIPUR.lng);
@@ -46,8 +59,9 @@ function Listings() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const data = await listMyListings();
+    const [data, inquiries] = await Promise.all([listMyListings(), listMyLeads()]);
     setRows(data);
+    setLeads(inquiries);
   }
 
   useEffect(() => {
@@ -68,6 +82,27 @@ function Listings() {
       }
     }
   }, [profile, form.id]);
+
+  function patchPhotos(files: FileList | null, current: string[], set: (photos: string[]) => void) {
+  if (!files?.length) return;
+  const next = [...current];
+  const readers = Array.from(files).slice(0, 3 - next.length);
+  for (const file of readers) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, 640 / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      next.push(canvas.toDataURL("image/jpeg", 0.65));
+      set(next.slice(0, 3));
+    };
+    img.src = url;
+  }
+}
 
   function patch<K extends keyof typeof empty>(key: K, value: (typeof empty)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -90,6 +125,13 @@ function Listings() {
         lng,
         contactName: form.contactName,
         contactPhone: form.contactPhone,
+        depositInr: Number(form.depositInr) || 0,
+        amenities: form.amenities.join(","),
+        houseNo: form.houseNo,
+        area: form.area,
+        city: form.city,
+        pincode: form.pincode,
+        photos: form.photos,
       },
     }).catch(() => ({ ok: false as const, error: "सेव नहीं हो सका।" }));
     setBusy(false);
@@ -161,6 +203,82 @@ function Listings() {
           placeholder="महीने का किराया, ₹"
           className="h-12 w-full rounded-2xl border border-line bg-paper px-4"
         />
+        <input
+          inputMode="numeric"
+          value={form.depositInr}
+          onChange={(e) => patch("depositInr", e.target.value)}
+          placeholder="सिक्योरिटी डिपॉजिट, ₹"
+          className="h-12 w-full rounded-2xl border border-line bg-paper px-4"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            value={form.houseNo}
+            onChange={(e) => patch("houseNo", e.target.value)}
+            placeholder="मकान नंबर / लैंडमार्क"
+            className="h-12 rounded-2xl border border-line bg-paper px-4"
+          />
+          <input
+            value={form.area}
+            onChange={(e) => patch("area", e.target.value)}
+            placeholder="इलाका"
+            className="h-12 rounded-2xl border border-line bg-paper px-4"
+          />
+          <input
+            value={form.city}
+            onChange={(e) => patch("city", e.target.value)}
+            placeholder="शहर"
+            className="h-12 rounded-2xl border border-line bg-paper px-4"
+          />
+          <input
+            value={form.pincode}
+            onChange={(e) => patch("pincode", e.target.value)}
+            placeholder="पिनकोड"
+            inputMode="numeric"
+            className="h-12 rounded-2xl border border-line bg-paper px-4"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {AMENITIES.map((item) => {
+            const on = form.amenities.includes(item.id);
+            const Icon = AMENITY_ICON[item.id];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() =>
+                  patch(
+                    "amenities",
+                    on ? form.amenities.filter((id) => id !== item.id) : [...form.amenities, item.id],
+                  )
+                }
+                className={`flex h-11 items-center justify-center gap-2 rounded-full border text-sm ${on ? "border-ink bg-ink text-paper" : "border-line bg-paper"}`}
+              >
+                <Icon className="size-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        <label className="block text-sm">
+          फ़ोटो, ज़्यादा से ज़्यादा 3
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="mt-1 block w-full text-sm"
+            onChange={(e) => {
+              patchPhotos(e.target.files, form.photos, (photos) => patch("photos", photos));
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {form.photos.length ? (
+          <div className="flex gap-2">
+            {form.photos.map((src) => (
+              <img key={src.slice(0, 40)} src={src} alt="" className="h-16 w-16 rounded-xl object-cover" />
+            ))}
+          </div>
+        ) : null}
         <textarea
           value={form.description}
           onChange={(e) => patch("description", e.target.value)}
@@ -232,12 +350,17 @@ function Listings() {
               <div>
                 <p className="text-xs text-muted">
                   {roomLabel(room.roomType)} · {furnishingLabel(room.furnishing)}
-                  {room.available ? "" : " · छिपा हुआ"}
+                  {room.available ? " · खाली" : " · भरा"}
                 </p>
                 <h3 className="font-display text-2xl">{room.title}</h3>
                 <p className="text-sm text-muted">
-                  {formatInr(room.rentInr)} · {room.contactName} · {formatPhone(room.contactPhone)}
+                  {formatInr(room.rentInr)}
+                  {room.depositInr ? ` · डिपॉजिट ${formatInr(room.depositInr)}` : ""} · {room.contactName} ·{" "}
+                  {formatPhone(room.contactPhone)}
                 </p>
+                {amenityLabels(room.amenities).length ? (
+                  <p className="text-xs text-muted">{amenityLabels(room.amenities).join(" · ")}</p>
+                ) : null}
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -255,6 +378,13 @@ function Listings() {
                     address: room.address,
                     contactName: room.contactName,
                     contactPhone: room.contactPhone,
+                    depositInr: room.depositInr ? String(room.depositInr) : "",
+                    houseNo: room.houseNo,
+                    area: room.area,
+                    city: room.city,
+                    pincode: room.pincode,
+                    amenities: room.amenities ? room.amenities.split(",") : [],
+                    photos: room.photos,
                   });
                   setLat(room.lat);
                   setLng(room.lng);
@@ -269,7 +399,7 @@ function Listings() {
                   void setListingAvailable({ data: { id: room.id, available: !room.available } }).then(load);
                 }}
               >
-                {room.available ? "बंद करें" : "फिर खोलें"}
+                {room.available ? "भर गया" : "खाली है"}
               </button>
               <button
                 type="button"
@@ -285,6 +415,22 @@ function Listings() {
           </li>
         ))}
       </ul>
+      {leads.length ? (
+        <section className="space-y-2">
+          <h2 className="font-display text-2xl">रुचि</h2>
+          {leads.map((lead) => (
+            <article key={lead.id} className="rounded-card border border-line bg-card p-4 text-sm">
+              <p className="font-medium">{lead.tenantName}</p>
+              <p className="text-muted">
+                {lead.listingTitle} · {formatPhone(lead.tenantPhone)}
+              </p>
+              <a className="mt-2 inline-flex h-10 items-center rounded-full bg-ink px-4 text-paper" href={`tel:+91${lead.tenantPhone}`}>
+                कॉल
+              </a>
+            </article>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }
