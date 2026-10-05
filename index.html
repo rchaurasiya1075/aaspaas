@@ -3,481 +3,334 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>QuickRent</title>
-  <meta name="description" content="Koldiha, Giridih — map par range ke andar kamre aur malik ka number." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <title>AasPaas</title>
+  <meta name="description" content="AasPaas — email ya mobile se login. Range ke andar kamra aur number." />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <style>
-    :root {
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #1e293b;
-      --muted: #64748b;
-      --line: #e2e8f0;
-      --soft: #f1f5f9;
-      --brand: #2563eb;
-      --brand-dark: #1d4ed8;
-      --land: #ea580c;
-      --ok: #059669;
-      --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
-    }
-    html.dark {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --line: #334155;
-      --soft: #0f172a;
-      --shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-    }
+    :root { --bg:#f6f1e8; --card:#fffdf8; --ink:#1c1915; --muted:#6f675e; --line:#e4d9c8; --saffron:#c4621a; --olive:#3f5344; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
+    body { margin:0; min-height:100vh; font-family: "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
     button, input, select { font: inherit; }
     button { cursor: pointer; }
     a { color: inherit; }
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 40;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      height: 64px;
-      padding: 0 16px;
-      background: color-mix(in srgb, var(--card) 88%, transparent);
-      border-bottom: 1px solid var(--line);
-      backdrop-filter: blur(12px);
-    }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; }
-    .mark {
-      width: 40px; height: 40px; border-radius: 12px;
-      display: grid; place-items: center;
-      background: linear-gradient(135deg, #2563eb, #4f46e5);
-      color: white; font-size: 18px;
-      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
-    }
-    .brand span { color: var(--brand); }
-    .pill {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      background: var(--soft);
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .dot { width: 8px; height: 8px; border-radius: 99px; background: #10b981; }
-    .icon-btn {
-      width: 42px; height: 42px; border: 0; border-radius: 12px;
-      background: var(--soft); color: var(--text);
-    }
-    .wrap {
-      width: min(1120px, 100%);
-      margin: 0 auto;
-      padding: 24px 16px 48px;
-      display: grid;
-      gap: 24px;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      padding: 20px;
-    }
-    h1, h2, h3 { margin: 0; }
-    .center { text-align: center; }
-    .muted { color: var(--muted); }
-    .tiny { font-size: 12px; }
-    .tabs {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      padding: 6px;
-      border-radius: 16px;
-      background: var(--soft);
-      border: 1px solid var(--line);
-      margin-top: 18px;
-    }
-    .tabs button, .btn, .ghost {
-      border: 0;
-      border-radius: 12px;
-      min-height: 44px;
-      font-weight: 800;
-      font-size: 13px;
-    }
-    .tabs button { background: transparent; color: var(--muted); }
-    .tabs button.on { color: white; }
-    .tabs button.on.tenant { background: var(--brand); box-shadow: 0 8px 16px rgba(37, 99, 235, 0.25); }
-    .tabs button.on.land { background: var(--land); box-shadow: 0 8px 16px rgba(234, 88, 12, 0.25); }
-    label { display: block; margin: 14px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-    input, select {
-      width: 100%;
-      min-height: 46px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: var(--soft);
-      color: var(--text);
-      padding: 0 12px;
-    }
-    .phone { position: relative; }
-    .phone span { position: absolute; left: 12px; top: 13px; font-weight: 800; color: var(--muted); }
-    .phone input { padding-left: 46px; }
-    .btn { width: 100%; color: white; margin-top: 14px; }
-    .btn.brand { background: var(--brand); }
-    .btn.land { background: var(--land); }
-    .btn.ok { background: var(--ok); }
-    .ghost {
-      width: 100%;
-      background: rgba(16, 185, 129, 0.12);
-      color: var(--ok);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-    }
-    .banner {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(37, 99, 235, 0.1);
-      color: var(--brand);
-      font-size: 13px;
-      font-weight: 700;
-    }
-    html.dark .banner { color: #93c5fd; }
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .range-box { margin-top: 14px; padding: 14px; border-radius: 16px; background: var(--soft); border: 1px solid var(--line); }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .badge { background: var(--brand); color: white; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 800; }
-    input[type="range"] { accent-color: #2563eb; padding: 0; min-height: 0; background: transparent; border: 0; }
-    .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 800; }
-    #map { height: 320px; width: 100%; border-radius: 18px; background: var(--soft); }
-    .map-head, .feed-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .live {
-      font-size: 11px; font-weight: 800; color: var(--ok);
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.25);
-      border-radius: 999px; padding: 3px 8px;
-    }
-    .room {
-      display: flex; flex-direction: column; gap: 14px;
-      margin-top: 12px;
-    }
-    .photo { height: 160px; border-radius: 16px; background: #cbd5e1 center/cover no-repeat; position: relative; }
-    .tag {
-      position: absolute; top: 10px; left: 10px;
-      background: var(--ok); color: white; font-size: 10px; font-weight: 800;
-      letter-spacing: 0.04em; text-transform: uppercase;
-      border-radius: 8px; padding: 4px 8px;
-    }
-    .tag.wait { background: #64748b; }
-    .price { color: var(--brand); font-weight: 800; font-size: 18px; white-space: nowrap; }
-    .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .actions a, .actions button {
-      flex: 1; min-height: 42px; border-radius: 12px; border: 0;
-      display: flex; align-items: center; justify-content: center;
-      color: white; font-weight: 800; font-size: 12px; text-decoration: none;
-    }
-    .call { background: var(--brand); }
-    .wa { background: #059669; }
-    .locked { background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
-    hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
     .hidden { display: none !important; }
-    @media (min-width: 720px) {
-      .pill { display: flex; }
-      header { padding: 0 28px; }
-      .room { flex-direction: row; }
-      .photo { width: 42%; height: 150px; flex: none; }
-    }
-    @media (min-width: 1024px) {
-      .wrap { grid-template-columns: 5fr 7fr; align-items: start; }
+    header, main { width: min(720px, 100%); margin: 0 auto; }
+    header { display:flex; justify-content:space-between; align-items:center; padding: 20px 16px; }
+    .brand { font-size: 28px; font-weight: 650; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 16px; }
+    h1 { font-size: 40px; line-height: 1.1; margin: 8px 0; }
+    .muted { color: var(--muted); }
+    .btn { display:flex; align-items:center; justify-content:center; min-height: 46px; border:0; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 650; text-decoration: none; }
+    .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    label { display:block; margin: 12px 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    input, select { width:100%; min-height: 46px; border-radius: 14px; border: 1px solid var(--line); background: white; padding: 0 12px; color: var(--ink); }
+    .err { color: var(--saffron); font-size: 14px; }
+    .ok { color: var(--olive); font-size: 14px; }
+    .roles { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .roles button { min-height: 40px; border-radius: 12px; border: 1px solid var(--line); background: white; }
+    .roles button.on { background: var(--ink); color: var(--bg); }
+    #map { height: 320px; border-radius: 18px; background: #efe6d8; }
+    .room { margin-top: 12px; }
+    .row { display:flex; justify-content:space-between; gap: 8px; }
+    .actions { display:flex; gap: 8px; margin-top: 10px; }
+    .actions a, .actions span { flex:1; min-height: 42px; border-radius: 999px; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size: 14px; font-weight: 650; }
+    .call { background: var(--ink); color: var(--bg); }
+    .wa { border: 1px solid var(--line); }
+    .login-stage { min-height: 100vh; display:grid; place-items:center; padding: 16px; background: #e7ebf0; }
+    .login-frame { width: min(980px, 100%); display:grid; background: white; border-radius: 28px; overflow: hidden; box-shadow: 0 24px 70px rgba(28,25,21,.12); }
+    .bloom { min-height: 220px; background: #1c1915 url("login-bloom.jpg") center/cover no-repeat; }
+    .panel { padding: 28px 22px 22px; }
+    @media (min-width: 900px) {
+      .login-frame { grid-template-columns: 1.05fr .95fr; min-height: 680px; }
+      .bloom { min-height: 100%; order: 2; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand"><div class="mark">⌂</div> Quick<span>Rent</span></div>
-    <div style="display:flex;align-items:center;gap:10px">
-      <div class="pill"><span class="dot"></span><span id="nav-location-text">Koldiha, Giridih</span></div>
-      <button class="icon-btn" type="button" onclick="toggleDarkMode()" aria-label="Dark mode">☾</button>
-    </div>
-  </header>
-
-  <main class="wrap">
-    <section class="card">
-      <div class="center">
-        <h1>App Control Center</h1>
-        <p class="tiny muted">Role aur geofence radius select karein</p>
-      </div>
-      <div class="tabs">
-        <button id="btn-tenant-tab" class="on tenant" type="button" onclick="setActiveRole('tenant')">Tenant</button>
-        <button id="btn-landlord-tab" class="land" type="button" onclick="setActiveRole('landlord')">Makan Malik</button>
-      </div>
-
-      <form id="auth-form" onsubmit="handleAuthentication(event)">
-        <label for="user-mobile">Mobile Number</label>
-        <div class="phone">
-          <span>+91</span>
-          <input id="user-mobile" type="tel" inputmode="numeric" maxlength="10" required placeholder="9876543210" />
+  <div id="gate" class="login-stage">
+    <div class="login-frame">
+      <div class="bloom"></div>
+      <section class="panel">
+        <p class="brand">AasPaas</p>
+        <h1 id="title" style="font-size:32px">Welcome Back</h1>
+        <p id="line" class="muted">Email aur password, ya mobile aur password. Forgot password par reset link email par jayega.</p>
+        <div id="roles" class="roles">
+          <button id="role-tenant" class="on" type="button">Room Seeker</button>
+          <button id="role-owner" type="button">Room Owner</button>
         </div>
-        <div id="otp-container" class="hidden">
-          <label for="user-otp">Enter OTP</label>
-          <input id="user-otp" type="text" inputmode="numeric" maxlength="6" placeholder="6 digit code" />
-        </div>
-        <button id="auth-submit-btn" class="btn brand" type="submit">Get OTP</button>
-      </form>
-      <p id="status-banner" class="banner hidden"></p>
-
-      <hr />
-
-      <div id="tenant-controls">
-        <button class="ghost" type="button" onclick="triggerGPS()"><span id="gps-status-label">Detect GPS Location on Map</span></button>
-        <div class="range-box">
-          <div class="row">
-            <span class="tiny" style="font-weight:800">Geofence Radius Range</span>
-            <span id="radius-display" class="badge">3 Km</span>
+        <form id="form">
+          <div id="name-wrap" class="hidden"><label>Name<input id="name" placeholder="Your name" /></label></div>
+          <label id="id-label">Email or mobile<input id="ident" placeholder="you@gmail.com or 9876543210" autocomplete="username" /></label>
+          <div id="phone-wrap" class="hidden"><label>Mobile<input id="phone" inputmode="numeric" placeholder="10 digit mobile" /></label></div>
+          <div id="pass-wrap"><label>Password<input id="password" type="password" placeholder="At least 8 characters" /></label></div>
+          <p id="note" class="ok hidden"></p>
+          <p id="error" class="err hidden"></p>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <button id="forgot" type="button" style="border:0;background:transparent;color:#5c6b7a;font-size:12px;font-weight:700">Forgot Password?</button>
           </div>
-          <input id="radius-range" type="range" min="1" max="10" value="3" oninput="handleRadiusChange(this.value)" />
-          <div class="ticks"><span>1 Km</span><span>5 Km</span><span>10 Km</span></div>
-        </div>
-      </div>
+          <button id="submit" class="btn" style="width:100%;margin-top:8px" type="submit">Sign in</button>
+        </form>
+        <button id="google" class="btn ghost" style="width:100%;margin-top:10px" type="button">Sign in with Google</button>
+        <p style="text-align:center;margin-top:16px" class="muted">
+          <button id="swap" type="button" style="border:0;background:transparent;font-weight:750;color:#5c6b7a">Don’t have an account? Sign up</button>
+        </p>
+      </section>
+    </div>
+  </div>
 
-      <div id="landlord-controls" class="hidden">
-        <label for="property-address">Property address</label>
-        <input id="property-address" type="text" placeholder="Koldiha, Giridih" />
-        <div class="split">
-          <select id="property-type" aria-label="Room type">
-            <option>1 BHK Room</option>
-            <option>2 BHK Flat</option>
-            <option>Single Room</option>
-          </select>
-          <input id="property-rent" type="number" min="500" placeholder="Rent / month" aria-label="Rent" />
-        </div>
-        <button class="btn land" type="button" onclick="createNewListing()">Add Room to Map Live</button>
+  <div id="app" class="hidden">
+    <header>
+      <div>
+        <div class="brand">AasPaas</div>
+        <div id="who" class="muted" style="font-size:13px"></div>
       </div>
-    </section>
-
-    <section>
-      <div class="card">
-        <div class="map-head">
-          <h2 class="tiny" style="font-size:14px">Interactive Live Map</h2>
-          <span class="live">GPS Radar Enabled</span>
-        </div>
-        <div id="map"></div>
-      </div>
-      <div class="feed-head" style="margin-top:18px">
-        <h2>Nearby Available Rooms (<span id="listings-count">0</span>)</h2>
-        <span class="tiny muted">Map distance updated</span>
-      </div>
-      <div id="listings-feed"></div>
-    </section>
-  </main>
+      <button id="out" type="button" style="border:0;background:transparent" class="muted">Sign out</button>
+    </header>
+    <main style="padding:0 16px 40px;display:grid;gap:14px">
+      <section id="tenant-box" class="card">
+        <div class="row"><strong>Range</strong><span id="radius-label">3 km</span></div>
+        <input id="radius" type="range" min="1" max="10" value="3" />
+        <button id="gps" class="btn ghost" style="margin-top:10px" type="button">Detect GPS</button>
+      </section>
+      <form id="owner-box" class="card hidden">
+        <strong>Add a room</strong>
+        <label>Address<input id="place" placeholder="Koldiha, Giridih" /></label>
+        <label>Room<input id="room-title" placeholder="1 BHK Room" /></label>
+        <label>Rent<input id="rent" type="number" min="500" placeholder="4500" /></label>
+        <button class="btn" style="width:100%;margin-top:12px" type="submit">Add room on the map</button>
+      </form>
+      <div id="map"></div>
+      <div id="feed"></div>
+    </main>
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script>
-    var map, userMarker, geofenceCircle;
-    var roomMarkers = [];
-    var userCoords = [24.1882, 86.3049];
-    var currentRadiusKm = 3;
-    var otpSent = false;
-    var loggedIn = false;
-    var DEMO_OTP = "482910";
-    var rooms = [
-      { title: "1 BHK Furnished Room", rent: 4500, place: "Durga Mandap, Koldiha", lat: 24.191, lng: 86.308, phone: "9876543210", img: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=600&q=80" },
-      { title: "Single Bachelor Room", rent: 2800, place: "Main Road, Giridih", lat: 24.182, lng: 86.299, phone: "9123456780", img: "https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=600&q=80" }
-    ];
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+    import { getDatabase, ref, get, set, onValue, push } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
 
-    function showStatus(msg) {
-      var el = document.getElementById("status-banner");
-      el.textContent = msg;
-      el.classList.remove("hidden");
+    const firebaseApp = initializeApp({
+      apiKey: "AIzaSyBsTplAWUCFk1uM0MnGHogP46KLuYYCyJc",
+      authDomain: "findlocation-8f5a6.firebaseapp.com",
+      databaseURL: "https://findlocation-8f5a6-default-rtdb.firebaseio.com",
+      projectId: "findlocation-8f5a6",
+      storageBucket: "findlocation-8f5a6.firebasestorage.app",
+      messagingSenderId: "913100192065",
+      appId: "1:913100192065:web:77e34912677bfb79afc9c0"
+    });
+    const auth = getAuth(firebaseApp);
+    const db = getDatabase(firebaseApp);
+    const HOME = { lat: 24.1882, lng: 86.3049 };
+    let mode = "in";
+    let role = "tenant";
+    let map, userMarker, circle;
+    let here = { ...HOME };
+    let radius = 3;
+    let rooms = [];
+    let roomsListen = false;
+
+    const $ = (id) => document.getElementById(id);
+    function show(id, text, cls) {
+      const el = $(id);
+      el.textContent = text || "";
+      el.classList.toggle("hidden", !text);
+      if (cls) el.className = cls;
     }
+    function explain(err) {
+      const code = err && err.code ? err.code : "";
+      if (code === "auth/operation-not-allowed") return "Firebase mein Email/Password abhi off hai. Console: Authentication, Sign-in method, Email/Password, Enable. Password wala switch on karein.";
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Email, mobile, ya password match nahi hua.";
+      if (code === "auth/email-already-in-use") return "Ye email pehle se hai. Sign in karein.";
+      if (code === "auth/popup-blocked") return "Popup block hai. Allow karke Google dubara try karein.";
+      if (code === "auth/unauthorized-domain") return "Is site par Google login allow nahi. Firebase authorized domains mein github.io add karein, ya email se sign in karein.";
+      return (err && err.message) || "Phir try karein.";
+    }
+    async function emailFor(id) {
+      const raw = id.trim();
+      if (raw.includes("@")) return raw.toLowerCase();
+      const phone = raw.replace(/\D/g, "").slice(-10);
+      if (phone.length !== 10) throw new Error("Email ya 10 digit mobile likhiye.");
+      const snap = await get(ref(db, "phones/" + phone));
+      const email = snap.val() && snap.val().email;
+      if (!email) throw new Error("Ye mobile register nahi hai. Pehle sign up karein.");
+      return String(email).toLowerCase();
+    }
+    function paintMode() {
+      const up = mode === "up";
+      const reset = mode === "reset";
+      $("title").textContent = reset ? "Reset password" : up ? "Create account" : "Welcome Back";
+      $("name-wrap").classList.toggle("hidden", !up);
+      $("phone-wrap").classList.toggle("hidden", !up);
+      $("id-label").firstChild.textContent = up ? "Email" : "Email or mobile";
+      $("ident").placeholder = up ? "you@gmail.com" : "you@gmail.com or 9876543210";
+      $("pass-wrap").classList.toggle("hidden", reset);
+      $("forgot").classList.toggle("hidden", mode !== "in");
+      $("google").classList.toggle("hidden", reset);
+      $("roles").classList.toggle("hidden", reset);
+      $("submit").textContent = reset ? "Send reset link" : up ? "Sign up" : "Sign in";
+      $("swap").textContent = reset ? "Back to sign in" : up ? "Already have an account? Sign in" : "Don’t have an account? Sign up";
+    }
+    function setRole(next) {
+      role = next;
+      $("role-tenant").classList.toggle("on", next === "tenant");
+      $("role-owner").classList.toggle("on", next === "landlord");
+    }
+    $("role-tenant").onclick = () => setRole("tenant");
+    $("role-owner").onclick = () => setRole("landlord");
+    $("forgot").onclick = () => { mode = "reset"; show("error", ""); paintMode(); };
+    $("swap").onclick = () => { mode = mode === "in" ? "up" : "in"; show("error", ""); paintMode(); };
+    $("out").onclick = () => signOut(auth);
+    $("form").onsubmit = async (e) => {
+      e.preventDefault();
+      show("error", "");
+      show("note", "");
+      $("submit").disabled = true;
+      try {
+        if (mode === "reset") {
+          const target = await emailFor($("ident").value);
+          await sendPasswordResetEmail(auth, target);
+          show("note", "Reset link bhej diya: " + target, "ok");
+          mode = "in";
+          paintMode();
+          return;
+        }
+        const password = $("password").value;
+        if (password.length < 8) throw new Error("Password kam se kam 8 characters ka ho.");
+        if (mode === "up") {
+          const mail = $("ident").value.trim().toLowerCase();
+          const mobile = $("phone").value.replace(/\D/g, "").slice(-10);
+          const name = $("name").value.trim();
+          if (!mail.includes("@")) throw new Error("Reset ke liye asli email likhiye.");
+          if (mobile.length !== 10) throw new Error("10 digit mobile likhiye.");
+          if (name.length < 2) throw new Error("Apna naam likhiye.");
+          const taken = await get(ref(db, "phones/" + mobile));
+          if (taken.exists()) throw new Error("Ye mobile pehle se kisi account par hai.");
+          const cred = await createUserWithEmailAndPassword(auth, mail, password);
+          await updateProfile(cred.user, { displayName: name });
+          await set(ref(db, "users/" + cred.user.uid), { name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng });
+          await set(ref(db, "phones/" + mobile), { email: mail, uid: cred.user.uid });
+        } else {
+          const mail = await emailFor($("ident").value);
+          await signInWithEmailAndPassword(auth, mail, password);
+        }
+      } catch (err) {
+        show("error", explain(err), "err");
+      } finally {
+        $("submit").disabled = false;
+      }
+    };
+    $("google").onclick = async () => {
+      show("error", "");
+      try {
+        const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+        const prev = await get(ref(db, "users/" + cred.user.uid));
+        const old = prev.val() || {};
+        await set(ref(db, "users/" + cred.user.uid), {
+          name: old.name || cred.user.displayName || "",
+          email: cred.user.email || old.email || "",
+          phone: old.phone || "",
+          role: old.role || role,
+          radiusKm: old.radiusKm || 3,
+          lat: old.lat || HOME.lat,
+          lng: old.lng || HOME.lng
+        });
+      } catch (err) {
+        show("error", explain(err), "err");
+      }
+    };
 
-    function kmBetween(aLat, aLng, bLat, bLng) {
-      var R = 6371;
-      var dLat = ((bLat - aLat) * Math.PI) / 180;
-      var dLng = ((bLng - aLng) * Math.PI) / 180;
-      var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    function km(aLat, aLng, bLat, bLng) {
+      const R = 6371;
+      const dLat = (bLat - aLat) * Math.PI / 180;
+      const dLng = (bLng - aLng) * Math.PI / 180;
+      const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
       return R * (2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s)));
     }
-
-    function initMap() {
-      var box = document.getElementById("map");
-      if (typeof L === "undefined") {
-        box.innerHTML = "<p style='padding:16px;font-weight:700'>Map abhi load nahi hua. Page ek baar refresh karein.</p>";
-        renderRooms();
-        return;
+    function drawMap() {
+      if (typeof L === "undefined") return;
+      if (!map) {
+        map = L.map("map", { scrollWheelZoom: false }).setView([here.lat, here.lng], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "OpenStreetMap" }).addTo(map);
+        userMarker = L.circleMarker([here.lat, here.lng], { radius: 8, color: "#1c1915", fillOpacity: 1 }).addTo(map);
+        circle = L.circle([here.lat, here.lng], { radius: radius * 1000, color: "#c4621a", fillOpacity: 0.12 }).addTo(map);
+        setTimeout(() => map.invalidateSize(), 200);
       }
-      map = L.map("map", { scrollWheelZoom: false }).setView(userCoords, 14);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "OpenStreetMap"
-      }).addTo(map);
-      var userIcon = L.divIcon({
-        className: "",
-        html: "<div style='background:#2563eb;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(37,99,235,.8)'></div>",
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-      });
-      userMarker = L.marker(userCoords, { icon: userIcon }).addTo(map).bindPopup("<b>Aapki location</b><br>Koldiha, Giridih");
-      geofenceCircle = L.circle(userCoords, {
-        color: "#2563eb",
-        fillColor: "#3b82f6",
-        fillOpacity: 0.15,
-        radius: currentRadiusKm * 1000
-      }).addTo(map);
-      drawRoomMarkers();
-      renderRooms();
-      setTimeout(function () { map.invalidateSize(); }, 250);
+      map.setView([here.lat, here.lng]);
+      userMarker.setLatLng([here.lat, here.lng]);
+      circle.setLatLng([here.lat, here.lng]);
+      circle.setRadius(radius * 1000);
+      if (window.roomLayer) map.removeLayer(window.roomLayer);
+      window.roomLayer = L.layerGroup().addTo(map);
+      rooms.forEach((room) => L.circleMarker([room.lat, room.lng], { radius: 6, color: "#c4621a" }).bindTooltip(room.title).addTo(window.roomLayer));
     }
-
-    function drawRoomMarkers() {
-      roomMarkers.forEach(function (m) { map.removeLayer(m); });
-      roomMarkers = [];
-      var roomIcon = L.divIcon({
-        className: "",
-        html: "<div style='background:#ea580c;width:14px;height:14px;border-radius:50%;border:2px solid white'></div>",
-        iconSize: [14, 14],
-        iconAnchor: [7, 7]
-      });
-      rooms.forEach(function (room) {
-        var marker = L.marker([room.lat, room.lng], { icon: roomIcon }).addTo(map).bindPopup("<b>" + room.title + "</b><br>₹" + room.rent);
-        roomMarkers.push(marker);
-      });
-    }
-
     function renderRooms() {
-      var feed = document.getElementById("listings-feed");
-      var html = "";
-      var inside = 0;
-      rooms.forEach(function (room) {
-        var km = kmBetween(userCoords[0], userCoords[1], room.lat, room.lng);
-        var open = km <= currentRadiusKm;
-        if (open) inside += 1;
-        var dist = km < 10 ? km.toFixed(1) : Math.round(km);
-        var actions = open
-          ? "<div class='actions'><a class='call' href='tel:" + room.phone + "'>Call</a><a class='wa' target='_blank' rel='noreferrer' href='https://wa.me/91" + room.phone + "'>WhatsApp</a></div>"
-          : "<div class='actions'><button class='locked' type='button'>Range ke bahar, number chhupa hai</button></div>";
-        html += "<article class='card room'><div class='photo' style='background-image:url(\"" + room.img + "\")'><span class='tag" + (open ? "" : " wait") + "'>" + (open ? "Available" : "Bahar") + "</span></div><div style='flex:1'><div class='row'><h3>" + room.title + "</h3><div class='price'>₹" + room.rent.toLocaleString("en-IN") + "<span class='tiny muted'>/mo</span></div></div><p class='tiny muted'>" + room.place + " (" + dist + " Km)</p>" + actions + "</div></article>";
-      });
-      feed.innerHTML = html;
-      document.getElementById("listings-count").textContent = String(inside);
+      const owner = me && me.role === "landlord";
+      $("feed").innerHTML = rooms.map((room) => {
+        const dist = km(here.lat, here.lng, room.lat, room.lng);
+        const open = owner || dist <= radius;
+        const phone = String(room.phone || "").replace(/\D/g, "").slice(-10);
+        const actions = open
+          ? `<div class="actions"><a class="call" href="tel:${phone}">Call</a><a class="wa" target="_blank" rel="noreferrer" href="https://wa.me/91${phone}">WhatsApp</a></div>`
+          : `<p class="muted">Range ke bahar. Number chhupa hai.</p>`;
+        return `<article class="card room"><div class="row"><div><strong>${room.title}</strong><div class="muted">${room.place} · ${dist.toFixed(1)} km</div></div><div>₹${Number(room.rent).toLocaleString("en-IN")}</div></div>${actions}</article>`;
+      }).join("");
+      drawMap();
     }
-
-    function handleRadiusChange(val) {
-      currentRadiusKm = Number(val);
-      document.getElementById("radius-display").textContent = val + " Km";
-      if (geofenceCircle) geofenceCircle.setRadius(currentRadiusKm * 1000);
+    $("radius").oninput = (e) => {
+      radius = Number(e.target.value);
+      $("radius-label").textContent = radius + " km";
       renderRooms();
-    }
-
-    function triggerGPS() {
-      var label = document.getElementById("gps-status-label");
-      label.textContent = "Fetching GPS...";
-      if (!navigator.geolocation) {
-        label.textContent = "GPS nahi mila. Koldiha par hi hain.";
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(function (pos) {
-        userCoords = [pos.coords.latitude, pos.coords.longitude];
-        if (map) {
-          map.setView(userCoords, 14);
-          userMarker.setLatLng(userCoords);
-          geofenceCircle.setLatLng(userCoords);
-        }
-        document.getElementById("nav-location-text").textContent = userCoords[0].toFixed(3) + ", " + userCoords[1].toFixed(3);
-        label.textContent = "GPS location map par aa gayi";
-        showStatus("Aapki location map par sync ho gayi.");
+    };
+    $("gps").onclick = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition((pos) => {
+        here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        if (auth.currentUser) set(ref(db, "users/" + auth.currentUser.uid + "/lat"), here.lat);
+        if (auth.currentUser) set(ref(db, "users/" + auth.currentUser.uid + "/lng"), here.lng);
         renderRooms();
-      }, function () {
-        label.textContent = "GPS band hai. Koldiha default par hain.";
-        showStatus("Location permission nahi mili. Koldiha, Giridih se chal raha hai.");
-      }, { enableHighAccuracy: true, timeout: 8000 });
-    }
-
-    function createNewListing() {
-      var address = document.getElementById("property-address").value.trim();
-      var rent = Number(document.getElementById("property-rent").value);
-      var type = document.getElementById("property-type").value;
-      if (!address || !rent) {
-        showStatus("Address aur rent dono likhiye.");
-        return;
-      }
-      var room = {
-        title: type,
-        rent: rent,
-        place: address,
-        lat: userCoords[0] + (Math.random() - 0.5) * 0.02,
-        lng: userCoords[1] + (Math.random() - 0.5) * 0.02,
-        phone: document.getElementById("user-mobile").value.replace(/\D/g, "").slice(-10) || "9876543210",
-        img: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=600&q=80"
-      };
-      rooms.unshift(room);
-      if (map) {
-        drawRoomMarkers();
-        map.setView([room.lat, room.lng], 14);
-      }
-      renderRooms();
-      showStatus("Naya room map par add ho gaya.");
-      document.getElementById("property-address").value = "";
-      document.getElementById("property-rent").value = "";
-      setActiveRole("tenant");
-    }
-
-    function setActiveRole(role) {
-      var tenantBtn = document.getElementById("btn-tenant-tab");
-      var landBtn = document.getElementById("btn-landlord-tab");
-      var tenantOn = role === "tenant";
-      tenantBtn.className = tenantOn ? "on tenant" : "tenant";
-      landBtn.className = tenantOn ? "land" : "on land";
-      document.getElementById("tenant-controls").classList.toggle("hidden", !tenantOn);
-      document.getElementById("landlord-controls").classList.toggle("hidden", tenantOn);
-    }
-
-    function handleAuthentication(e) {
+      });
+    };
+    $("owner-box").onsubmit = async (e) => {
       e.preventDefault();
-      var mobile = document.getElementById("user-mobile").value.replace(/\D/g, "");
-      if (mobile.length !== 10) {
-        showStatus("10 digit mobile number likhiye.");
+      const title = $("room-title").value.trim();
+      const place = $("place").value.trim();
+      const rent = Number($("rent").value);
+      if (!title || !place || !rent) return;
+      await push(ref(db, "rooms"), { title, place, rent, lat: here.lat, lng: here.lng, phone: (me && me.phone) || "9876543210", ownerId: auth.currentUser.uid });
+      e.target.reset();
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        $("gate").classList.remove("hidden");
+        $("app").classList.add("hidden");
         return;
       }
-      if (!otpSent) {
-        otpSent = true;
-        document.getElementById("otp-container").classList.remove("hidden");
-        document.getElementById("auth-submit-btn").textContent = "Verify OTP";
-        showStatus("Demo OTP: " + DEMO_OTP + " — yahi 6 digit daaliye.");
-        document.getElementById("user-otp").focus();
-        return;
+      const snap = await get(ref(db, "users/" + user.uid));
+      me = snap.val() || { name: user.displayName || "AasPaas", email: user.email || "", phone: "", role: "tenant", radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
+      role = me.role === "landlord" ? "landlord" : "tenant";
+      radius = Number(me.radiusKm) || 3;
+      here = { lat: Number(me.lat) || HOME.lat, lng: Number(me.lng) || HOME.lng };
+      $("radius").value = String(radius);
+      $("radius-label").textContent = radius + " km";
+      $("who").textContent = (role === "landlord" ? "Room owner" : "Room seeker") + " · " + (me.name || me.email);
+      $("tenant-box").classList.toggle("hidden", role === "landlord");
+      $("owner-box").classList.toggle("hidden", role !== "landlord");
+      $("gate").classList.add("hidden");
+      $("app").classList.remove("hidden");
+      await set(ref(db, "rooms/seed-koldiha"), { title: "1 BHK Furnished Room", rent: 4500, place: "Durga Mandap, Koldiha", lat: 24.191, lng: 86.308, phone: "9876543210" });
+      await set(ref(db, "rooms/seed-giridih"), { title: "Single Bachelor Room", rent: 2800, place: "Main Road, Giridih", lat: 24.182, lng: 86.299, phone: "9123456780" });
+      if (!roomsListen) {
+        roomsListen = true;
+        onValue(ref(db, "rooms"), (snapRooms) => {
+          const val = snapRooms.val() || {};
+          rooms = Object.entries(val).map(([id, room]) => ({ id, ...room }));
+          renderRooms();
+        });
       }
-      var code = document.getElementById("user-otp").value.replace(/\D/g, "");
-      if (code !== DEMO_OTP) {
-        showStatus("OTP galat hai. Demo code " + DEMO_OTP + " hai.");
-        return;
-      }
-      loggedIn = true;
-      document.getElementById("auth-form").classList.add("hidden");
-      showStatus("Login ho gaya. +91 " + mobile);
-    }
-
-    function toggleDarkMode() {
-      document.documentElement.classList.toggle("dark");
-      try { localStorage.setItem("qr-dark", document.documentElement.classList.contains("dark") ? "1" : "0"); } catch (err) {}
-    }
-
-    try {
-      if (localStorage.getItem("qr-dark") === "1") document.documentElement.classList.add("dark");
-    } catch (err) {}
-
-    initMap();
+    });
+    paintMode();
   </script>
 </body>
 </html>
