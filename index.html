@@ -200,7 +200,14 @@
         return Math.random().toString(36).slice(2, 10);
       }
       function esc(s) {
-        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&", "<": "<", ">": ">", '"': """, "'": "&#39;" }[c]));
+        var map = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': '&quot;',
+          "'": '&#39;'
+        };
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return map[c]; });
       }
       function kmBetween(aLat, aLng, bLat, bLng) {
         const R = 6371;
