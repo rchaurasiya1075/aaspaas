@@ -147,6 +147,20 @@
       if (code === "auth/unauthorized-domain") return "Is site par Google login allow nahi. Firebase authorized domains mein github.io add karein, ya email se sign in karein.";
       return (err && err.message) || "Phir try karein.";
     }
+    function mailKey(mail) { return mail.toLowerCase().replace(/\./g, ","); }
+    async function hashPassword(password, salt) {
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: 100000 }, key, 256);
+      return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    function saveLocal(profile) {
+      localStorage.setItem("aaspaas.session", JSON.stringify(profile));
+      activeUid = profile.uid;
+      openDesk(profile);
+    }
+    let activeUid = null;
+    let resetLocal = false;
     async function emailFor(id) {
       const raw = id.trim();
       if (raw.includes("@")) return raw.toLowerCase();
@@ -162,10 +176,11 @@
       const reset = mode === "reset";
       $("title").textContent = reset ? "Reset password" : up ? "Create account" : "Welcome Back";
       $("name-wrap").classList.toggle("hidden", !up);
-      $("phone-wrap").classList.toggle("hidden", !up);
+      $("phone-wrap").classList.toggle("hidden", !(up || reset));
       $("id-label").firstChild.textContent = up ? "Email" : "Email or mobile";
       $("ident").placeholder = up ? "you@gmail.com" : "you@gmail.com or 9876543210";
-      $("pass-wrap").classList.toggle("hidden", reset);
+      $("pass-wrap").classList.remove("hidden");
+      $("pass-wrap").querySelector("label").firstChild.textContent = reset ? "New password" : "Password";
       $("forgot").classList.toggle("hidden", mode !== "in");
       $("google").classList.toggle("hidden", reset);
       $("roles").classList.toggle("hidden", reset);
@@ -181,7 +196,13 @@
     $("role-owner").onclick = () => setRole("landlord");
     $("forgot").onclick = () => { mode = "reset"; show("error", ""); paintMode(); };
     $("swap").onclick = () => { mode = mode === "in" ? "up" : "in"; show("error", ""); paintMode(); };
-    $("out").onclick = () => signOut(auth);
+    $("out").onclick = async () => {
+      activeUid = null;
+      localStorage.removeItem("aaspaas.session");
+      try { await signOut(auth); } catch (err) {}
+      $("gate").classList.remove("hidden");
+      $("app").classList.add("hidden");
+    };
     $("form").onsubmit = async (e) => {
       e.preventDefault();
       show("error", "");
@@ -190,10 +211,35 @@
       try {
         if (mode === "reset") {
           const target = await emailFor($("ident").value);
-          await sendPasswordResetEmail(auth, target);
-          show("note", "Reset link bhej diya: " + target, "ok");
+          if (!resetLocal) {
+            try {
+              await sendPasswordResetEmail(auth, target);
+              show("note", "Reset link bhej diya: " + target, "ok");
+              mode = "in";
+              paintMode();
+              return;
+            } catch (err) {
+              if (!(err && err.code === "auth/operation-not-allowed")) throw err;
+              resetLocal = true;
+              paintMode();
+              show("note", "Email reset band hai. Registered mobile aur naya password likhiye.", "ok");
+              return;
+            }
+          }
+          const mobile = $("phone").value.replace(/\D/g, "").slice(-10);
+          const password = $("password").value;
+          if (mobile.length !== 10 || password.length < 8) throw new Error("Mobile aur naya password, 8 characters, likhiye.");
+          const linked = (await get(ref(db, "phones/" + mobile))).val();
+          if (!linked || String(linked.email).toLowerCase() !== target) throw new Error("Ye mobile is email se match nahi karta.");
+          const key = mailKey(target);
+          const acc = (await get(ref(db, "accounts/" + key))).val();
+          if (!acc) throw new Error("Account nahi mila.");
+          const salt = crypto.randomUUID();
+          await set(ref(db, "accounts/" + key), Object.assign({}, acc, { salt, passHash: await hashPassword(password, salt) }));
+          resetLocal = false;
           mode = "in";
           paintMode();
+          show("note", "Password badal gaya. Ab sign in karein.", "ok");
           return;
         }
         const password = $("password").value;
@@ -202,18 +248,41 @@
           const mail = $("ident").value.trim().toLowerCase();
           const mobile = $("phone").value.replace(/\D/g, "").slice(-10);
           const name = $("name").value.trim();
-          if (!mail.includes("@")) throw new Error("Reset ke liye asli email likhiye.");
+          if (!mail.includes("@")) throw new Error("Asli email likhiye.");
           if (mobile.length !== 10) throw new Error("10 digit mobile likhiye.");
           if (name.length < 2) throw new Error("Apna naam likhiye.");
           const taken = await get(ref(db, "phones/" + mobile));
           if (taken.exists()) throw new Error("Ye mobile pehle se kisi account par hai.");
-          const cred = await createUserWithEmailAndPassword(auth, mail, password);
-          await updateProfile(cred.user, { displayName: name });
-          await set(ref(db, "users/" + cred.user.uid), { name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng });
-          await set(ref(db, "phones/" + mobile), { email: mail, uid: cred.user.uid });
+          try {
+            const cred = await createUserWithEmailAndPassword(auth, mail, password);
+            await updateProfile(cred.user, { displayName: name });
+            await set(ref(db, "users/" + cred.user.uid), { name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng });
+            await set(ref(db, "phones/" + mobile), { email: mail, uid: cred.user.uid });
+          } catch (err) {
+            if (!(err && err.code === "auth/operation-not-allowed")) throw err;
+            const key = mailKey(mail);
+            if ((await get(ref(db, "accounts/" + key))).exists()) throw new Error("Ye email pehle se hai. Sign in karein.");
+            const salt = crypto.randomUUID();
+            const passHash = await hashPassword(password, salt);
+            const profile = { uid: key, name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
+            await set(ref(db, "accounts/" + key), { name, email: mail, phone: mobile, role, salt, passHash });
+            await set(ref(db, "users/" + key), profile);
+            await set(ref(db, "phones/" + mobile), { email: mail, uid: key });
+            saveLocal(profile);
+          }
         } else {
           const mail = await emailFor($("ident").value);
-          await signInWithEmailAndPassword(auth, mail, password);
+          try {
+            await signInWithEmailAndPassword(auth, mail, password);
+          } catch (err) {
+            const code = err && err.code;
+            if (code !== "auth/operation-not-allowed" && code !== "auth/invalid-credential" && code !== "auth/user-not-found") throw err;
+            const key = mailKey(mail);
+            const acc = (await get(ref(db, "accounts/" + key))).val();
+            if (!acc || acc.passHash !== await hashPassword(password, acc.salt)) throw new Error("Email, mobile, ya password match nahi hua.");
+            const profile = (await get(ref(db, "users/" + key))).val() || acc;
+            saveLocal(Object.assign({ uid: key }, profile));
+          }
         }
       } catch (err) {
         show("error", explain(err), "err");
@@ -287,8 +356,10 @@
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition((pos) => {
         here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (auth.currentUser) set(ref(db, "users/" + auth.currentUser.uid + "/lat"), here.lat);
-        if (auth.currentUser) set(ref(db, "users/" + auth.currentUser.uid + "/lng"), here.lng);
+        if (activeUid) {
+          set(ref(db, "users/" + activeUid + "/lat"), here.lat);
+          set(ref(db, "users/" + activeUid + "/lng"), here.lng);
+        }
         renderRooms();
       });
     };
@@ -298,24 +369,19 @@
       const place = $("place").value.trim();
       const rent = Number($("rent").value);
       if (!title || !place || !rent) return;
-      await push(ref(db, "rooms"), { title, place, rent, lat: here.lat, lng: here.lng, phone: (me && me.phone) || "9876543210", ownerId: auth.currentUser.uid });
+      await push(ref(db, "rooms"), { title, place, rent, lat: here.lat, lng: here.lng, phone: (me && me.phone) || "9876543210", ownerId: activeUid });
       e.target.reset();
     };
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        $("gate").classList.remove("hidden");
-        $("app").classList.add("hidden");
-        return;
-      }
-      const snap = await get(ref(db, "users/" + user.uid));
-      me = snap.val() || { name: user.displayName || "AasPaas", email: user.email || "", phone: "", role: "tenant", radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
-      role = me.role === "landlord" ? "landlord" : "tenant";
-      radius = Number(me.radiusKm) || 3;
-      here = { lat: Number(me.lat) || HOME.lat, lng: Number(me.lng) || HOME.lng };
+    async function openDesk(profile) {
+      me = profile;
+      activeUid = profile.uid;
+      role = profile.role === "landlord" ? "landlord" : "tenant";
+      radius = Number(profile.radiusKm) || 3;
+      here = { lat: Number(profile.lat) || HOME.lat, lng: Number(profile.lng) || HOME.lng };
       $("radius").value = String(radius);
       $("radius-label").textContent = radius + " km";
-      $("who").textContent = (role === "landlord" ? "Room owner" : "Room seeker") + " · " + (me.name || me.email);
+      $("who").textContent = (role === "landlord" ? "Room owner" : "Room seeker") + " · " + (profile.name || profile.email);
       $("tenant-box").classList.toggle("hidden", role === "landlord");
       $("owner-box").classList.toggle("hidden", role !== "landlord");
       $("gate").classList.add("hidden");
@@ -329,7 +395,28 @@
           rooms = Object.entries(val).map(([id, room]) => ({ id, ...room }));
           renderRooms();
         });
+      } else {
+        renderRooms();
       }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const snap = await get(ref(db, "users/" + user.uid));
+        const profile = snap.val() || { name: user.displayName || "AasPaas", email: user.email || "", phone: "", role: "tenant", radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
+        await openDesk(Object.assign({ uid: user.uid }, profile));
+        return;
+      }
+      if (activeUid) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem("aaspaas.session") || "null");
+        if (saved && saved.uid) {
+          await openDesk(saved);
+          return;
+        }
+      } catch (err) {}
+      $("gate").classList.remove("hidden");
+      $("app").classList.add("hidden");
     });
     paintMode();
   </script>
