@@ -1,424 +1,743 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AasPaas</title>
-  <meta name="description" content="AasPaas — email ya mobile se login. Range ke andar kamra aur number." />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: {
+        brand: { 50: "#eff6ff", 500: "#3b82f6", 600: "#2563eb", 700: "#1d4ed8", 950: "#172554" },
+        landlord: { 50: "#fff7ed", 500: "#f97316", 600: "#ea580c", 700: "#c2410c" }
+      } } }
+    };
+  </script>
   <style>
-    :root { --bg:#f6f1e8; --card:#fffdf8; --ink:#1c1915; --muted:#6f675e; --line:#e4d9c8; --saffron:#c4621a; --olive:#3f5344; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; font-family: "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
-    button, input, select { font: inherit; }
-    button { cursor: pointer; }
-    a { color: inherit; }
+    body { font-family: "Plus Jakarta Sans", sans-serif; }
+    .glass-card { background: rgba(255,255,255,.95); backdrop-filter: blur(12px); }
+    .dark .glass-card { background: rgba(30,41,59,.95); }
+    #seeker-map, #landlord-map { height: 260px; width: 100%; border-radius: 1rem; z-index: 10; background: #e2e8f0; }
     .hidden { display: none !important; }
-    header, main { width: min(720px, 100%); margin: 0 auto; }
-    header { display:flex; justify-content:space-between; align-items:center; padding: 20px 16px; }
-    .brand { font-size: 28px; font-weight: 650; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 16px; }
-    h1 { font-size: 40px; line-height: 1.1; margin: 8px 0; }
-    .muted { color: var(--muted); }
-    .btn { display:flex; align-items:center; justify-content:center; min-height: 46px; border:0; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 650; text-decoration: none; }
-    .ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-    label { display:block; margin: 12px 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
-    input, select { width:100%; min-height: 46px; border-radius: 14px; border: 1px solid var(--line); background: white; padding: 0 12px; color: var(--ink); }
-    .err { color: var(--saffron); font-size: 14px; }
-    .ok { color: var(--olive); font-size: 14px; }
-    .roles { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-    .roles button { min-height: 40px; border-radius: 12px; border: 1px solid var(--line); background: white; }
-    .roles button.on { background: var(--ink); color: var(--bg); }
-    #map { height: 320px; border-radius: 18px; background: #efe6d8; }
-    .room { margin-top: 12px; }
-    .row { display:flex; justify-content:space-between; gap: 8px; }
-    .actions { display:flex; gap: 8px; margin-top: 10px; }
-    .actions a, .actions span { flex:1; min-height: 42px; border-radius: 999px; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size: 14px; font-weight: 650; }
-    .call { background: var(--ink); color: var(--bg); }
-    .wa { border: 1px solid var(--line); }
-    .login-stage { min-height: 100vh; display:grid; place-items:center; padding: 16px; background: #e7ebf0; }
-    .login-frame { width: min(980px, 100%); display:grid; background: white; border-radius: 28px; overflow: hidden; box-shadow: 0 24px 70px rgba(28,25,21,.12); }
-    .bloom { min-height: 220px; background: #1c1915 url("login-bloom.jpg") center/cover no-repeat; }
-    .panel { padding: 28px 22px 22px; }
-    @media (min-width: 900px) {
-      .login-frame { grid-template-columns: 1.05fr .95fr; min-height: 680px; }
-      .bloom { min-height: 100%; order: 2; }
-    }
+    #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 70; }
   </style>
 </head>
-<body>
-  <div id="gate" class="login-stage">
-    <div class="login-frame">
-      <div class="bloom"></div>
-      <section class="panel">
-        <p class="brand">AasPaas</p>
-        <h1 id="title" style="font-size:32px">Welcome Back</h1>
-        <p id="line" class="muted">Email aur password, ya mobile aur password. Forgot password par reset link email par jayega.</p>
-        <div id="roles" class="roles">
-          <button id="role-tenant" class="on" type="button">Room Seeker</button>
-          <button id="role-owner" type="button">Room Owner</button>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col pb-20">
+  <header class="sticky top-0 z-40 glass-card border-b border-slate-200 dark:border-slate-800 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center shadow-lg">
+          <i class="fa-solid fa-location-dot text-white text-xl"></i>
         </div>
-        <form id="form">
-          <div id="name-wrap" class="hidden"><label>Name<input id="name" placeholder="Your name" /></label></div>
-          <label id="id-label">Email or mobile<input id="ident" placeholder="you@gmail.com or 9876543210" autocomplete="username" /></label>
-          <div id="phone-wrap" class="hidden"><label>Mobile<input id="phone" inputmode="numeric" placeholder="10 digit mobile" /></label></div>
-          <div id="pass-wrap"><label>Password<input id="password" type="password" placeholder="At least 8 characters" /></label></div>
-          <p id="note" class="ok hidden"></p>
-          <p id="error" class="err hidden"></p>
-          <div style="display:flex;justify-content:flex-end;margin-top:8px">
-            <button id="forgot" type="button" style="border:0;background:transparent;color:#5c6b7a;font-size:12px;font-weight:700">Forgot Password?</button>
+        <div>
+          <span class="text-xl font-extrabold tracking-tight">Aas<span class="text-brand-600">Paas</span></span>
+          <span id="active-role-tag" class="hidden sm:inline-block text-[10px] bg-slate-100 dark:bg-slate-800 font-bold px-2 py-0.5 rounded-full ml-2">Portal</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="toggleDarkMode()" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800" aria-label="Dark mode">
+          <i class="fa-solid fa-moon dark:hidden"></i>
+          <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+        </button>
+        <div id="user-profile-header" class="hidden cursor-pointer flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-2xl" onclick="openProfileModal()">
+          <div class="w-8 h-8 rounded-xl bg-brand-600 text-white font-black text-xs flex items-center justify-center">
+            <span id="user-avatar-initials">U</span>
           </div>
-          <button id="submit" class="btn" style="width:100%;margin-top:8px" type="submit">Sign in</button>
-        </form>
-        <button id="google" class="btn ghost" style="width:100%;margin-top:10px" type="button">Sign in with Google</button>
-        <p style="text-align:center;margin-top:16px" class="muted">
-          <button id="swap" type="button" style="border:0;background:transparent;font-weight:750;color:#5c6b7a">Don’t have an account? Sign up</button>
-        </p>
+          <div class="hidden md:block text-left">
+            <p id="user-display-name" class="text-xs font-bold leading-tight">User Name</p>
+            <p id="user-display-role" class="text-[10px] text-slate-500 font-semibold">Role</p>
+          </div>
+        </div>
+        <button id="logout-btn" type="button" onclick="handleLogout()" class="hidden p-2.5 rounded-xl bg-red-50 text-red-600" title="Logout">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section id="login-screen" class="flex-grow flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full glass-card p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-2xl">
+          <i class="fa-solid fa-house-user"></i>
+        </div>
+        <h2 class="text-2xl font-black tracking-tight">Welcome to AasPaas</h2>
+        <p class="text-xs text-slate-500">Apna role select karke portal me enter karein</p>
+      </div>
+      <form onsubmit="processLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Full Name</label>
+          <input type="text" id="login-name" required placeholder="Aapka Naam" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-sm focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Mobile Number</label>
+          <div class="relative">
+            <span class="absolute left-3 top-3 font-bold text-sm text-slate-500">+91</span>
+            <input type="tel" id="login-phone" maxlength="10" required placeholder="9876543210" class="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Select User Type</label>
+          <select id="login-role" class="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-sm focus:outline-none">
+            <option value="seeker">Room Seeker / Tenant (Room Khojna Hai)</option>
+            <option value="landlord">Landlord (Apna Room Kiraye Par Dena Hai)</option>
+          </select>
+        </div>
+        <p id="login-error" class="hidden text-xs font-bold text-red-500"></p>
+        <button type="submit" class="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-brand-600 hover:bg-brand-700 shadow-lg">Continue to Portal</button>
+      </form>
+    </div>
+  </section>
+
+  <main id="seeker-interface" class="hidden max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+    <div class="glass-card p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg space-y-4">
+      <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
+        <div class="w-full md:w-2/3 flex gap-2">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400"></i>
+            <input type="text" id="seeker-location-input" placeholder="Kis area ya city me room chahiye?" class="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-xs focus:outline-none" />
+          </div>
+          <button type="button" onclick="searchSeekerLocation()" class="px-5 py-3 bg-brand-600 text-white font-bold rounded-2xl text-xs">Search</button>
+        </div>
+        <button type="button" onclick="getAutoGPSLocation()" class="w-full md:w-auto px-4 py-3 bg-emerald-600 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2">
+          <i class="fa-solid fa-crosshairs"></i> Auto Use Current Location
+        </button>
+      </div>
+      <p class="text-[11px] font-semibold text-slate-500"><i class="fa-solid fa-location-dot text-brand-600"></i> Selected Area: <span id="current-area-text" class="text-slate-800 dark:text-slate-200 font-bold">Delhi NCR (Default)</span></p>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <aside class="lg:col-span-4 glass-card p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md space-y-5 h-fit">
+        <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="font-black text-sm"><i class="fa-solid fa-filter text-brand-600"></i> Filter Rooms</h3>
+          <button type="button" onclick="resetFilters()" class="text-[10px] font-bold text-red-500">Reset All</button>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Max Monthly Rent: <span id="budget-val" class="text-brand-600 font-extrabold">₹15,000</span></label>
+          <input type="range" id="filter-budget" min="2000" max="30000" step="500" value="15000" oninput="document.getElementById('budget-val').innerText = '₹' + Number(this.value).toLocaleString('en-IN')" class="w-full accent-brand-600" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Room Category</label>
+          <select id="filter-room-type" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-xs">
+            <option value="all">All Types</option>
+            <option value="Single Room">Single Room</option>
+            <option value="1 BHK Room">1 BHK Room</option>
+            <option value="2 BHK Flat">2 BHK Flat</option>
+            <option value="PG / Hostel">PG / Hostel</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">Furnishing Status</label>
+          <select id="filter-furnish" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold text-xs">
+            <option value="all">Any Status</option>
+            <option value="Fully Furnished">Fully Furnished</option>
+            <option value="Semi Furnished">Semi Furnished</option>
+            <option value="Unfurnished">Unfurnished</option>
+          </select>
+        </div>
+        <div id="tenant-filters">
+          <label class="block text-xs font-bold text-slate-500 mb-1">Preferred Tenants</label>
+          <div class="space-y-1.5 text-xs font-semibold">
+            <label class="flex items-center gap-2"><input type="checkbox" value="bachelor" checked class="accent-brand-600" /> Bachelors / Students</label>
+            <label class="flex items-center gap-2"><input type="checkbox" value="family" checked class="accent-brand-600" /> Family</label>
+            <label class="flex items-center gap-2"><input type="checkbox" value="working" checked class="accent-brand-600" /> Working Professionals</label>
+          </div>
+        </div>
+        <button type="button" onclick="applySeekerFilters()" class="w-full py-3 bg-brand-600 text-white font-bold rounded-xl text-xs">Apply Filters</button>
+      </aside>
+      <section class="lg:col-span-8 space-y-6">
+        <div class="glass-card p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md space-y-2">
+          <h4 class="text-xs font-bold uppercase"><i class="fa-solid fa-map-location-dot text-brand-600"></i> Rooms Near Selected Area</h4>
+          <div id="seeker-map"></div>
+        </div>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-black text-base">AasPaas Available Rooms (<span id="seeker-count">0</span>)</h3>
+            <span class="text-xs text-slate-400 font-semibold">Showing matching properties</span>
+          </div>
+          <div id="seeker-room-feed" class="space-y-4"></div>
+        </div>
       </section>
+    </div>
+  </main>
+
+  <main id="landlord-interface" class="hidden max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-8">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="glass-card p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex items-center gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl"><i class="fa-solid fa-eye"></i></div>
+        <div><p class="text-xs font-bold text-slate-400 uppercase">Total Room Views</p><h3 id="total-landlord-views" class="text-xl font-black">0</h3></div>
+      </div>
+      <div class="glass-card p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex items-center gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl"><i class="fa-solid fa-folder-open"></i></div>
+        <div><p class="text-xs font-bold text-slate-400 uppercase">Details Opened</p><h3 id="total-landlord-opens" class="text-xl font-black">0</h3></div>
+      </div>
+      <div class="glass-card p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex items-center gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl"><i class="fa-solid fa-comments"></i></div>
+        <div><p class="text-xs font-bold text-slate-400 uppercase">Interested Enquiries</p><h3 id="total-landlord-enquiries" class="text-xl font-black">0</h3></div>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-6 glass-card p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-5">
+        <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+          <h3 class="text-base font-black text-landlord-600"><i class="fa-solid fa-house-medical"></i> Register New Room Listing</h3>
+          <p class="text-xs text-slate-500">Apne room ki full details dalein taaki Room Seekers aapko contact karein</p>
+        </div>
+        <form id="landlord-form" onsubmit="handleLandlordSubmit(event)" class="space-y-4 text-xs">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Landlord Name</label>
+              <input type="text" id="landlord-form-name" required placeholder="Owner Name" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold focus:outline-none" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Contact Phone</label>
+              <input type="tel" id="landlord-form-phone" required placeholder="Mobile No." class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold focus:outline-none" />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Room Category</label>
+              <select id="landlord-form-type" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold">
+                <option>1 BHK Room</option>
+                <option>2 BHK Flat</option>
+                <option>Single Room</option>
+                <option>PG / Hostel</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Rent (₹/mo)</label>
+              <input type="number" id="landlord-form-rent" required min="500" placeholder="5500" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold focus:outline-none" />
+            </div>
+            <div>
+              <label class="block font-bold text-slate-500 mb-1">Furnishing</label>
+              <select id="landlord-form-furnish" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold">
+                <option>Fully Furnished</option>
+                <option>Semi Furnished</option>
+                <option>Unfurnished</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-500 mb-1">Full Room Address</label>
+            <textarea id="landlord-form-address" required rows="2" placeholder="House No, Street, Landmark, Area" class="w-full p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold focus:outline-none"></textarea>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-500 mb-1">Who can stay</label>
+            <div id="landlord-tenants" class="flex flex-wrap gap-3 font-semibold">
+              <label class="flex items-center gap-1"><input type="checkbox" value="bachelor" checked /> Bachelors</label>
+              <label class="flex items-center gap-1"><input type="checkbox" value="family" checked /> Family</label>
+              <label class="flex items-center gap-1"><input type="checkbox" value="working" checked /> Working</label>
+            </div>
+          </div>
+          <div class="p-3 bg-slate-100 dark:bg-slate-800/60 rounded-2xl space-y-2">
+            <label class="block font-bold"><i class="fa-solid fa-map-pin text-red-500"></i> Mark location on map (drag the pin)</label>
+            <div id="landlord-map"></div>
+            <input type="hidden" id="landlord-lat" value="28.6139" />
+            <input type="hidden" id="landlord-lng" value="77.2090" />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-500 mb-1">Upload room photos (up to 3)</label>
+            <input type="file" id="landlord-form-photos" multiple accept="image/*" onchange="previewLandlordPhotos(event)" class="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs" />
+            <div id="landlord-photos-preview" class="grid grid-cols-4 gap-2 mt-3"></div>
+          </div>
+          <button type="submit" class="w-full py-3.5 rounded-xl font-bold text-xs text-white bg-landlord-600">Publish Room Listing</button>
+        </form>
+      </div>
+      <div class="lg:col-span-6 space-y-4">
+        <h3 class="font-black text-base flex items-center justify-between"><span>My Active Room Listings</span><span class="text-xs text-slate-400">Live counts</span></h3>
+        <div id="landlord-my-rooms-list" class="space-y-4"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="chat-widget" class="hidden flex fixed bottom-20 right-4 w-80 sm:w-96 glass-card border border-slate-200 dark:border-slate-700 shadow-2xl rounded-3xl z-50 flex-col overflow-hidden">
+    <div class="bg-brand-600 p-4 text-white flex justify-between items-center">
+      <div>
+        <h4 id="chat-target-name" class="font-bold text-xs">Landlord</h4>
+        <p class="text-[10px] text-blue-100">AasPaas Live Chat</p>
+      </div>
+      <button type="button" onclick="closeChatWidget()" class="text-white"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="chat-messages" class="p-4 h-64 overflow-y-auto space-y-3 bg-slate-50 dark:bg-slate-900 text-xs"></div>
+    <form onsubmit="sendChatMessage(event)" class="p-3 border-t border-slate-200 dark:border-slate-800 flex gap-2 bg-white dark:bg-slate-900">
+      <input type="text" id="chat-input" placeholder="Message likhein..." class="flex-1 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs focus:outline-none" />
+      <button type="submit" class="px-3.5 py-2 bg-brand-600 text-white rounded-xl text-xs font-bold"><i class="fa-solid fa-paper-plane"></i></button>
+    </form>
+  </div>
+
+  <div id="profile-modal" class="hidden flex fixed inset-0 bg-slate-900/60 z-50 items-center justify-center p-4">
+    <div class="max-w-md w-full glass-card p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
+      <div class="flex justify-between items-center">
+        <h3 class="font-black text-base">User Profile</h3>
+        <button type="button" onclick="closeProfileModal()"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-brand-600 text-white text-xl font-black flex items-center justify-center"><span id="modal-profile-initials">U</span></div>
+        <div>
+          <h4 id="modal-profile-name" class="font-bold text-base">Name</h4>
+          <p id="modal-profile-phone" class="text-xs text-slate-500">+91</p>
+          <span id="modal-profile-role" class="inline-block mt-1 text-[10px] bg-brand-100 text-brand-700 font-bold px-2 py-0.5 rounded-full">Role</span>
+        </div>
+      </div>
+      <button type="button" onclick="handleLogout(); closeProfileModal();" class="w-full py-3 bg-red-50 text-red-600 rounded-xl font-bold text-xs">Log Out</button>
     </div>
   </div>
 
-  <div id="app" class="hidden">
-    <header>
-      <div>
-        <div class="brand">AasPaas</div>
-        <div id="who" class="muted" style="font-size:13px"></div>
-      </div>
-      <button id="out" type="button" style="border:0;background:transparent" class="muted">Sign out</button>
-    </header>
-    <main style="padding:0 16px 40px;display:grid;gap:14px">
-      <section id="tenant-box" class="card">
-        <div class="row"><strong>Range</strong><span id="radius-label">3 km</span></div>
-        <input id="radius" type="range" min="1" max="10" value="3" />
-        <button id="gps" class="btn ghost" style="margin-top:10px" type="button">Detect GPS</button>
-      </section>
-      <form id="owner-box" class="card hidden">
-        <strong>Add a room</strong>
-        <label>Address<input id="place" placeholder="Koldiha, Giridih" /></label>
-        <label>Room<input id="room-title" placeholder="1 BHK Room" /></label>
-        <label>Rent<input id="rent" type="number" min="500" placeholder="4500" /></label>
-        <button class="btn" style="width:100%;margin-top:12px" type="submit">Add room on the map</button>
-      </form>
-      <div id="map"></div>
-      <div id="feed"></div>
-    </main>
-  </div>
+  <footer class="fixed bottom-0 left-0 right-0 z-40 glass-card border-t border-slate-200 dark:border-slate-800 py-2.5 px-6">
+    <div class="max-w-md mx-auto flex justify-between items-center text-center">
+      <button type="button" onclick="window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center text-brand-600 font-bold text-[10px]"><i class="fa-solid fa-house text-lg mb-0.5"></i> Home</button>
+      <button type="button" onclick="openChatWidget('AasPaas Support', 'support')" class="flex flex-col items-center text-slate-400 font-bold text-[10px]"><i class="fa-solid fa-comments text-lg mb-0.5"></i> Chats</button>
+      <button type="button" onclick="openProfileModal()" class="flex flex-col items-center text-slate-400 font-bold text-[10px]"><i class="fa-solid fa-user text-lg mb-0.5"></i> Account</button>
+    </div>
+  </footer>
+  <p id="toast" class="hidden rounded-full bg-slate-900 text-white text-xs font-bold px-4 py-2 shadow-lg"></p>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
-    import { getDatabase, ref, get, set, onValue, push } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
+  <script>
+    var currentRole = "seeker";
+    var session = null;
+    var allRooms = [];
+    var seekerMap, landlordMap, landlordMarker, seekerLayer, userLayer;
+    var defaultCoords = [28.6139, 77.209];
+    var seekerCenter = defaultCoords.slice();
+    var landlordPhotoDataUrls = [];
+    var dbRef = null;
+    var chatRoomId = null;
+    var chatOff = null;
+    var seen = {};
 
-    const firebaseApp = initializeApp({
-      apiKey: "AIzaSyBsTplAWUCFk1uM0MnGHogP46KLuYYCyJc",
-      authDomain: "findlocation-8f5a6.firebaseapp.com",
-      databaseURL: "https://findlocation-8f5a6-default-rtdb.firebaseio.com",
-      projectId: "findlocation-8f5a6",
-      storageBucket: "findlocation-8f5a6.firebasestorage.app",
-      messagingSenderId: "913100192065",
-      appId: "1:913100192065:web:77e34912677bfb79afc9c0"
-    });
-    const auth = getAuth(firebaseApp);
-    const db = getDatabase(firebaseApp);
-    const HOME = { lat: 24.1882, lng: 86.3049 };
-    let mode = "in";
-    let role = "tenant";
-    let map, userMarker, circle;
-    let here = { ...HOME };
-    let radius = 3;
-    let rooms = [];
-    let roomsListen = false;
-    let me = null;
-
-    const $ = (id) => document.getElementById(id);
-    function show(id, text, cls) {
-      const el = $(id);
-      el.textContent = text || "";
-      el.classList.toggle("hidden", !text);
-      if (cls) el.className = cls;
+    function digits(v) { return String(v || "").replace(/\D/g, "").slice(-10); }
+    function initials(name) {
+      var parts = String(name || "U").trim().split(/\s+/).slice(0, 2);
+      return parts.map(function (w) { return w.charAt(0); }).join("").toUpperCase() || "U";
     }
-    function explain(err) {
-      const code = err && err.code ? err.code : "";
-      if (code === "auth/operation-not-allowed") return "Firebase mein Email/Password abhi off hai. Console: Authentication, Sign-in method, Email/Password, Enable. Password wala switch on karein.";
-      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Email, mobile, ya password match nahi hua.";
-      if (code === "auth/email-already-in-use") return "Ye email pehle se hai. Sign in karein.";
-      if (code === "auth/popup-blocked") return "Popup block hai. Allow karke Google dubara try karein.";
-      if (code === "auth/unauthorized-domain") return "Is site par Google login allow nahi. Firebase authorized domains mein github.io add karein, ya email se sign in karein.";
-      return (err && err.message) || "Phir try karein.";
+    function toast(msg) {
+      var el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.remove("hidden");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(function () { el.classList.add("hidden"); }, 2800);
     }
-    function mailKey(mail) { return mail.toLowerCase().replace(/\./g, ","); }
-    async function hashPassword(password, salt) {
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
-      const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode(salt), iterations: 100000 }, key, 256);
-      return Array.from(new Uint8Array(bits)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    function pin(color) {
+      return L.divIcon({
+        className: "",
+        html: "<div style='width:16px;height:16px;border-radius:50%;background:" + color + ";border:2px solid #fff;box-shadow:0 0 0 4px rgba(0,0,0,.12)'></div>",
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
     }
-    function saveLocal(profile) {
-      localStorage.setItem("aaspaas.session", JSON.stringify(profile));
-      activeUid = profile.uid;
-      openDesk(profile);
-    }
-    let activeUid = null;
-    let resetLocal = false;
-    async function emailFor(id) {
-      const raw = id.trim();
-      if (raw.includes("@")) return raw.toLowerCase();
-      const phone = raw.replace(/\D/g, "").slice(-10);
-      if (phone.length !== 10) throw new Error("Email ya 10 digit mobile likhiye.");
-      const snap = await get(ref(db, "phones/" + phone));
-      const email = snap.val() && snap.val().email;
-      if (!email) throw new Error("Ye mobile register nahi hai. Pehle sign up karein.");
-      return String(email).toLowerCase();
-    }
-    function paintMode() {
-      const up = mode === "up";
-      const reset = mode === "reset";
-      $("title").textContent = reset ? "Reset password" : up ? "Create account" : "Welcome Back";
-      $("name-wrap").classList.toggle("hidden", !up);
-      $("phone-wrap").classList.toggle("hidden", !(up || reset));
-      $("id-label").firstChild.textContent = up ? "Email" : "Email or mobile";
-      $("ident").placeholder = up ? "you@gmail.com" : "you@gmail.com or 9876543210";
-      $("pass-wrap").classList.remove("hidden");
-      $("pass-wrap").querySelector("label").firstChild.textContent = reset ? "New password" : "Password";
-      $("forgot").classList.toggle("hidden", mode !== "in");
-      $("google").classList.toggle("hidden", reset);
-      $("roles").classList.toggle("hidden", reset);
-      $("submit").textContent = reset ? "Send reset link" : up ? "Sign up" : "Sign in";
-      $("swap").textContent = reset ? "Back to sign in" : up ? "Already have an account? Sign in" : "Don’t have an account? Sign up";
-    }
-    function setRole(next) {
-      role = next;
-      $("role-tenant").classList.toggle("on", next === "tenant");
-      $("role-owner").classList.toggle("on", next === "landlord");
-    }
-    $("role-tenant").onclick = () => setRole("tenant");
-    $("role-owner").onclick = () => setRole("landlord");
-    $("forgot").onclick = () => { mode = "reset"; show("error", ""); paintMode(); };
-    $("swap").onclick = () => { mode = mode === "in" ? "up" : "in"; show("error", ""); paintMode(); };
-    $("out").onclick = async () => {
-      activeUid = null;
-      localStorage.removeItem("aaspaas.session");
-      try { await signOut(auth); } catch (err) {}
-      $("gate").classList.remove("hidden");
-      $("app").classList.add("hidden");
-    };
-    $("form").onsubmit = async (e) => {
-      e.preventDefault();
-      show("error", "");
-      show("note", "");
-      $("submit").disabled = true;
-      try {
-        if (mode === "reset") {
-          const target = await emailFor($("ident").value);
-          if (!resetLocal) {
-            try {
-              await sendPasswordResetEmail(auth, target);
-              show("note", "Reset link bhej diya: " + target, "ok");
-              mode = "in";
-              paintMode();
-              return;
-            } catch (err) {
-              if (!(err && err.code === "auth/operation-not-allowed")) throw err;
-              resetLocal = true;
-              paintMode();
-              show("note", "Email reset band hai. Registered mobile aur naya password likhiye.", "ok");
-              return;
-            }
-          }
-          const mobile = $("phone").value.replace(/\D/g, "").slice(-10);
-          const password = $("password").value;
-          if (mobile.length !== 10 || password.length < 8) throw new Error("Mobile aur naya password, 8 characters, likhiye.");
-          const linked = (await get(ref(db, "phones/" + mobile))).val();
-          if (!linked || String(linked.email).toLowerCase() !== target) throw new Error("Ye mobile is email se match nahi karta.");
-          const key = mailKey(target);
-          const acc = (await get(ref(db, "accounts/" + key))).val();
-          if (!acc) throw new Error("Account nahi mila.");
-          const salt = crypto.randomUUID();
-          await set(ref(db, "accounts/" + key), Object.assign({}, acc, { salt, passHash: await hashPassword(password, salt) }));
-          resetLocal = false;
-          mode = "in";
-          paintMode();
-          show("note", "Password badal gaya. Ab sign in karein.", "ok");
-          return;
-        }
-        const password = $("password").value;
-        if (password.length < 8) throw new Error("Password kam se kam 8 characters ka ho.");
-        if (mode === "up") {
-          const mail = $("ident").value.trim().toLowerCase();
-          const mobile = $("phone").value.replace(/\D/g, "").slice(-10);
-          const name = $("name").value.trim();
-          if (!mail.includes("@")) throw new Error("Asli email likhiye.");
-          if (mobile.length !== 10) throw new Error("10 digit mobile likhiye.");
-          if (name.length < 2) throw new Error("Apna naam likhiye.");
-          const taken = await get(ref(db, "phones/" + mobile));
-          if (taken.exists()) throw new Error("Ye mobile pehle se kisi account par hai.");
-          try {
-            const cred = await createUserWithEmailAndPassword(auth, mail, password);
-            await updateProfile(cred.user, { displayName: name });
-            await set(ref(db, "users/" + cred.user.uid), { name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng });
-            await set(ref(db, "phones/" + mobile), { email: mail, uid: cred.user.uid });
-          } catch (err) {
-            if (!(err && err.code === "auth/operation-not-allowed")) throw err;
-            const key = mailKey(mail);
-            if ((await get(ref(db, "accounts/" + key))).exists()) throw new Error("Ye email pehle se hai. Sign in karein.");
-            const salt = crypto.randomUUID();
-            const passHash = await hashPassword(password, salt);
-            const profile = { uid: key, name, email: mail, phone: mobile, role, radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
-            await set(ref(db, "accounts/" + key), { name, email: mail, phone: mobile, role, salt, passHash });
-            await set(ref(db, "users/" + key), profile);
-            await set(ref(db, "phones/" + mobile), { email: mail, uid: key });
-            saveLocal(profile);
-          }
-        } else {
-          const mail = await emailFor($("ident").value);
-          try {
-            await signInWithEmailAndPassword(auth, mail, password);
-          } catch (err) {
-            const code = err && err.code;
-            if (code !== "auth/operation-not-allowed" && code !== "auth/invalid-credential" && code !== "auth/user-not-found") throw err;
-            const key = mailKey(mail);
-            const acc = (await get(ref(db, "accounts/" + key))).val();
-            if (!acc || acc.passHash !== await hashPassword(password, acc.salt)) throw new Error("Email, mobile, ya password match nahi hua.");
-            const profile = (await get(ref(db, "users/" + key))).val() || acc;
-            saveLocal(Object.assign({ uid: key }, profile));
-          }
-        }
-      } catch (err) {
-        show("error", explain(err), "err");
-      } finally {
-        $("submit").disabled = false;
-      }
-    };
-    $("google").onclick = async () => {
-      show("error", "");
-      try {
-        const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-        const prev = await get(ref(db, "users/" + cred.user.uid));
-        const old = prev.val() || {};
-        await set(ref(db, "users/" + cred.user.uid), {
-          name: old.name || cred.user.displayName || "",
-          email: cred.user.email || old.email || "",
-          phone: old.phone || "",
-          role: old.role || role,
-          radiusKm: old.radiusKm || 3,
-          lat: old.lat || HOME.lat,
-          lng: old.lng || HOME.lng
-        });
-      } catch (err) {
-        show("error", explain(err), "err");
-      }
-    };
-
-    function km(aLat, aLng, bLat, bLng) {
-      const R = 6371;
-      const dLat = (bLat - aLat) * Math.PI / 180;
-      const dLng = (bLng - aLng) * Math.PI / 180;
-      const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    function kmBetween(a, b) {
+      var R = 6371;
+      var dLat = (b[0] - a[0]) * Math.PI / 180;
+      var dLng = (b[1] - a[1]) * Math.PI / 180;
+      var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
       return R * (2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s)));
     }
-    function drawMap() {
-      if (typeof L === "undefined") return;
-      if (!map) {
-        map = L.map("map", { scrollWheelZoom: false }).setView([here.lat, here.lng], 13);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "OpenStreetMap" }).addTo(map);
-        userMarker = L.circleMarker([here.lat, here.lng], { radius: 8, color: "#1c1915", fillOpacity: 1 }).addTo(map);
-        circle = L.circle([here.lat, here.lng], { radius: radius * 1000, color: "#c4621a", fillOpacity: 0.12 }).addTo(map);
-        setTimeout(() => map.invalidateSize(), 200);
-      }
-      map.setView([here.lat, here.lng]);
-      userMarker.setLatLng([here.lat, here.lng]);
-      circle.setLatLng([here.lat, here.lng]);
-      circle.setRadius(radius * 1000);
-      if (window.roomLayer) map.removeLayer(window.roomLayer);
-      window.roomLayer = L.layerGroup().addTo(map);
-      rooms.forEach((room) => L.circleMarker([room.lat, room.lng], { radius: 6, color: "#c4621a" }).bindTooltip(room.title).addTo(window.roomLayer));
+    function show(id, on) {
+      document.getElementById(id).classList.toggle("hidden", !on);
     }
-    function renderRooms() {
-      const owner = me && me.role === "landlord";
-      $("feed").innerHTML = rooms.map((room) => {
-        const dist = km(here.lat, here.lng, room.lat, room.lng);
-        const open = owner || dist <= radius;
-        const phone = String(room.phone || "").replace(/\D/g, "").slice(-10);
-        const actions = open
-          ? `<div class="actions"><a class="call" href="tel:${phone}">Call</a><a class="wa" target="_blank" rel="noreferrer" href="https://wa.me/91${phone}">WhatsApp</a></div>`
-          : `<p class="muted">Range ke bahar. Number chhupa hai.</p>`;
-        return `<article class="card room"><div class="row"><div><strong>${room.title}</strong><div class="muted">${room.place} · ${dist.toFixed(1)} km</div></div><div>₹${Number(room.rent).toLocaleString("en-IN")}</div></div>${actions}</article>`;
-      }).join("");
-      drawMap();
-    }
-    $("radius").oninput = (e) => {
-      radius = Number(e.target.value);
-      $("radius-label").textContent = radius + " km";
-      renderRooms();
-    };
-    $("gps").onclick = () => {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition((pos) => {
-        here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        if (activeUid) {
-          set(ref(db, "users/" + activeUid + "/lat"), here.lat);
-          set(ref(db, "users/" + activeUid + "/lng"), here.lng);
-        }
-        renderRooms();
-      });
-    };
-    $("owner-box").onsubmit = async (e) => {
+
+    function processLogin(e) {
       e.preventDefault();
-      const title = $("room-title").value.trim();
-      const place = $("place").value.trim();
-      const rent = Number($("rent").value);
-      if (!title || !place || !rent) return;
-      await push(ref(db, "rooms"), { title, place, rent, lat: here.lat, lng: here.lng, phone: (me && me.phone) || "9876543210", ownerId: activeUid });
-      e.target.reset();
-    };
-
-    async function openDesk(profile) {
-      me = profile;
-      activeUid = profile.uid;
-      role = profile.role === "landlord" ? "landlord" : "tenant";
-      radius = Number(profile.radiusKm) || 3;
-      here = { lat: Number(profile.lat) || HOME.lat, lng: Number(profile.lng) || HOME.lng };
-      $("radius").value = String(radius);
-      $("radius-label").textContent = radius + " km";
-      $("who").textContent = (role === "landlord" ? "Room owner" : "Room seeker") + " · " + (profile.name || profile.email);
-      $("tenant-box").classList.toggle("hidden", role === "landlord");
-      $("owner-box").classList.toggle("hidden", role !== "landlord");
-      $("gate").classList.add("hidden");
-      $("app").classList.remove("hidden");
-      await set(ref(db, "rooms/seed-koldiha"), { title: "1 BHK Furnished Room", rent: 4500, place: "Durga Mandap, Koldiha", lat: 24.191, lng: 86.308, phone: "9876543210" });
-      await set(ref(db, "rooms/seed-giridih"), { title: "Single Bachelor Room", rent: 2800, place: "Main Road, Giridih", lat: 24.182, lng: 86.299, phone: "9123456780" });
-      if (!roomsListen) {
-        roomsListen = true;
-        onValue(ref(db, "rooms"), (snapRooms) => {
-          const val = snapRooms.val() || {};
-          rooms = Object.entries(val).map(([id, room]) => ({ id, ...room }));
-          renderRooms();
-        });
-      } else {
-        renderRooms();
-      }
-    }
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const snap = await get(ref(db, "users/" + user.uid));
-        const profile = snap.val() || { name: user.displayName || "AasPaas", email: user.email || "", phone: "", role: "tenant", radiusKm: 3, lat: HOME.lat, lng: HOME.lng };
-        await openDesk(Object.assign({ uid: user.uid }, profile));
+      var name = document.getElementById("login-name").value.trim();
+      var phone = digits(document.getElementById("login-phone").value);
+      var err = document.getElementById("login-error");
+      if (name.length < 2 || phone.length !== 10) {
+        err.textContent = "Naam aur 10 digit mobile likhiye.";
+        err.classList.remove("hidden");
         return;
       }
-      if (activeUid) return;
-      try {
-        const saved = JSON.parse(localStorage.getItem("aaspaas.session") || "null");
-        if (saved && saved.uid) {
-          await openDesk(saved);
-          return;
+      err.classList.add("hidden");
+      enter({ name: name, phone: phone, role: document.getElementById("login-role").value });
+    }
+    function enter(user) {
+      session = user;
+      currentRole = user.role === "landlord" ? "landlord" : "seeker";
+      try { localStorage.setItem("aaspaas.portal", JSON.stringify(session)); } catch (e) {}
+      var mark = initials(user.name);
+      document.getElementById("user-avatar-initials").textContent = mark;
+      document.getElementById("modal-profile-initials").textContent = mark;
+      document.getElementById("user-display-name").textContent = user.name;
+      document.getElementById("modal-profile-name").textContent = user.name;
+      document.getElementById("user-display-role").textContent = currentRole === "seeker" ? "Room Seeker" : "Landlord";
+      document.getElementById("modal-profile-role").textContent = currentRole === "seeker" ? "Room Seeker" : "Landlord";
+      document.getElementById("modal-profile-phone").textContent = "+91 " + user.phone;
+      document.getElementById("active-role-tag").textContent = currentRole === "seeker" ? "Tenant Portal" : "Landlord Desk";
+      show("login-screen", false);
+      show("user-profile-header", true);
+      show("logout-btn", true);
+      show("seeker-interface", currentRole === "seeker");
+      show("landlord-interface", currentRole === "landlord");
+      if (currentRole === "landlord") {
+        document.getElementById("landlord-form-name").value = user.name;
+        document.getElementById("landlord-form-phone").value = user.phone;
+      }
+      setTimeout(function () {
+        if (currentRole === "seeker") initSeekerMap();
+        else initLandlordMap();
+        paint();
+      }, 180);
+    }
+    function handleLogout() {
+      session = null;
+      try { localStorage.removeItem("aaspaas.portal"); } catch (e) {}
+      show("seeker-interface", false);
+      show("landlord-interface", false);
+      show("user-profile-header", false);
+      show("logout-btn", false);
+      show("login-screen", true);
+      closeChatWidget();
+      closeProfileModal();
+    }
+
+    function wantedTenants() {
+      return Array.prototype.map.call(document.querySelectorAll("#tenant-filters input:checked"), function (el) { return el.value; });
+    }
+    function filteredRooms() {
+      var max = Number(document.getElementById("filter-budget").value);
+      var type = document.getElementById("filter-room-type").value;
+      var furnish = document.getElementById("filter-furnish").value;
+      var want = wantedTenants();
+      return allRooms.filter(function (room) {
+        if (Number(room.rent) > max) return false;
+        if (type !== "all" && room.type !== type) return false;
+        if (furnish !== "all" && room.furnish !== furnish) return false;
+        var tags = String(room.tenants || "bachelor,family,working").split(",");
+        if (want.length && !want.some(function (w) { return tags.indexOf(w) !== -1; })) return false;
+        return true;
+      });
+    }
+    function applySeekerFilters() { paint(); toast("Filters lag gaye."); }
+    function resetFilters() {
+      document.getElementById("filter-budget").value = 15000;
+      document.getElementById("budget-val").textContent = "₹15,000";
+      document.getElementById("filter-room-type").value = "all";
+      document.getElementById("filter-furnish").value = "all";
+      Array.prototype.forEach.call(document.querySelectorAll("#tenant-filters input"), function (el) { el.checked = true; });
+      paint();
+    }
+
+    function initSeekerMap() {
+      if (typeof L === "undefined") return;
+      if (!seekerMap) {
+        seekerMap = L.map("seeker-map").setView(seekerCenter, 12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "OpenStreetMap" }).addTo(seekerMap);
+        seekerLayer = L.layerGroup().addTo(seekerMap);
+        userLayer = L.layerGroup().addTo(seekerMap);
+      }
+      setTimeout(function () { seekerMap.invalidateSize(); paint(); }, 220);
+    }
+    function renderMapMarkers(list) {
+      if (!seekerMap) return;
+      seekerLayer.clearLayers();
+      list.forEach(function (room) {
+        L.marker([Number(room.lat), Number(room.lng)], { icon: pin("#2563eb") }).addTo(seekerLayer)
+          .bindPopup("<b>" + room.title + "</b><br>₹" + Number(room.rent).toLocaleString("en-IN") + " / mo");
+      });
+    }
+    function renderSeekerFeed() {
+      var list = filteredRooms();
+      var feed = document.getElementById("seeker-room-feed");
+      document.getElementById("seeker-count").textContent = String(list.length);
+      if (!list.length) {
+        feed.innerHTML = "<p class='text-sm text-slate-500'>Is filter me koi room nahi mila. Reset karke dubara dekhein.</p>";
+      } else {
+        feed.innerHTML = list.map(function (room) {
+          var dist = kmBetween(seekerCenter, [Number(room.lat), Number(room.lng)]);
+          var photos = (room.photos || []).map(function (p) {
+            return "<img src='" + p + "' class='w-36 h-24 rounded-xl object-cover flex-shrink-0' alt='' />";
+          }).join("");
+          bump(room.id, "views");
+          return "<article class='glass-card p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md space-y-3'><div class='flex gap-2 overflow-x-auto'>" + photos + "</div><div class='flex justify-between items-start gap-3'><div><span class='text-[10px] font-bold bg-brand-50 text-brand-700 px-2 py-0.5 rounded-md'>" + room.furnish + "</span><h4 class='font-bold text-sm mt-1'>" + room.title + "</h4><p class='text-xs text-slate-500'>" + room.address + "</p><p class='text-xs text-slate-500'>Landlord: " + room.owner + " · " + dist.toFixed(1) + " km</p></div><div class='text-brand-600 font-black text-base'>₹" + Number(room.rent).toLocaleString("en-IN") + "<span class='text-[10px] text-slate-400 font-normal'>/mo</span></div></div><div class='flex gap-2'><button type='button' onclick='openChatWidget(" + JSON.stringify(room.owner) + "," + JSON.stringify(room.id) + ")' class='flex-1 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold'>Chat Landlord</button><a href='tel:" + digits(room.phone) + "' class='px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold'>Call</a></div></article>";
+        }).join("");
+      }
+      renderMapMarkers(list);
+    }
+    function getAutoGPSLocation() {
+      if (!navigator.geolocation) { toast("GPS is phone par nahi hai."); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        seekerCenter = [pos.coords.latitude, pos.coords.longitude];
+        if (seekerMap) {
+          seekerMap.setView(seekerCenter, 14);
+          userLayer.clearLayers();
+          L.marker(seekerCenter, { icon: pin("#059669") }).addTo(userLayer).bindPopup("Aap yahan hain");
         }
-      } catch (err) {}
-      $("gate").classList.remove("hidden");
-      $("app").classList.add("hidden");
-    });
-    paintMode();
+        document.getElementById("current-area-text").textContent = "Current GPS location";
+        paint();
+      }, function () { toast("Location permission nahi mili."); }, { enableHighAccuracy: true, timeout: 8000 });
+    }
+    function searchSeekerLocation() {
+      var query = document.getElementById("seeker-location-input").value.trim();
+      if (!query) return;
+      document.getElementById("current-area-text").textContent = "Dhundh rahe hain…";
+      fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(query))
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (!data || !data.length) { toast("Location nahi mili."); return; }
+          seekerCenter = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+          if (seekerMap) seekerMap.setView(seekerCenter, 13);
+          document.getElementById("current-area-text").textContent = query;
+          paint();
+        })
+        .catch(function () { toast("Search abhi nahi ho paya."); });
+    }
+
+    function initLandlordMap() {
+      if (typeof L === "undefined") return;
+      if (!landlordMap) {
+        landlordMap = L.map("landlord-map").setView(defaultCoords, 12);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "OpenStreetMap" }).addTo(landlordMap);
+        landlordMarker = L.marker(defaultCoords, { icon: pin("#ea580c"), draggable: true }).addTo(landlordMap);
+        function setPin(latlng) {
+          landlordMarker.setLatLng(latlng);
+          document.getElementById("landlord-lat").value = latlng.lat;
+          document.getElementById("landlord-lng").value = latlng.lng;
+        }
+        landlordMarker.on("dragend", function (e) { setPin(e.target.getLatLng()); });
+        landlordMap.on("click", function (e) { setPin(e.latlng); });
+      }
+      setTimeout(function () { landlordMap.invalidateSize(); paint(); }, 220);
+    }
+    function previewLandlordPhotos(e) {
+      var files = Array.prototype.slice.call(e.target.files || []).slice(0, 3);
+      var container = document.getElementById("landlord-photos-preview");
+      container.innerHTML = "";
+      landlordPhotoDataUrls = [];
+      files.forEach(function (file) {
+        var img = new Image();
+        var url = URL.createObjectURL(file);
+        img.onload = function () {
+          var scale = Math.min(1, 640 / Math.max(img.width, img.height));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          var data = canvas.toDataURL("image/jpeg", 0.62);
+          landlordPhotoDataUrls.push(data);
+          container.insertAdjacentHTML("beforeend", "<img src='" + data + "' class='w-full h-16 rounded-xl object-cover border' alt='' />");
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      });
+    }
+    function handleLandlordSubmit(e) {
+      e.preventDefault();
+      if (!landlordPhotoDataUrls.length) { toast("Kam se kam 1 photo chahiye."); return; }
+      var tenants = Array.prototype.map.call(document.querySelectorAll("#landlord-tenants input:checked"), function (el) { return el.value; });
+      var room = {
+        title: document.getElementById("landlord-form-type").value,
+        rent: Number(document.getElementById("landlord-form-rent").value),
+        type: document.getElementById("landlord-form-type").value,
+        furnish: document.getElementById("landlord-form-furnish").value,
+        address: document.getElementById("landlord-form-address").value.trim(),
+        owner: document.getElementById("landlord-form-name").value.trim(),
+        phone: digits(document.getElementById("landlord-form-phone").value),
+        lat: Number(document.getElementById("landlord-lat").value),
+        lng: Number(document.getElementById("landlord-lng").value),
+        photos: landlordPhotoDataUrls.slice(),
+        tenants: tenants.join(",") || "bachelor,family,working",
+        views: 0,
+        opens: 0,
+        enquiries: 0
+      };
+      if (room.phone.length !== 10 || !room.address || !room.rent) { toast("Phone, address aur rent sahi bharein."); return; }
+      saveRoom(room);
+    }
+    function myRooms() {
+      var phone = session ? session.phone : "";
+      return allRooms.filter(function (room) { return digits(room.phone) === phone; });
+    }
+    function renderLandlordRooms() {
+      var list = myRooms();
+      var views = 0, opens = 0, enquiries = 0;
+      var container = document.getElementById("landlord-my-rooms-list");
+      container.innerHTML = list.map(function (room) {
+        views += Number(room.views) || 0;
+        opens += Number(room.opens) || 0;
+        enquiries += Number(room.enquiries) || 0;
+        return "<article class='glass-card p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md space-y-3'><div class='flex justify-between items-start'><div><h4 class='font-bold text-sm'>" + room.title + "</h4><p class='text-xs text-slate-500'>" + room.address + "</p><p class='text-xs font-bold text-landlord-600 mt-1'>₹" + Number(room.rent).toLocaleString("en-IN") + "/month</p></div><span class='text-[10px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full'>Active</span></div><div class='bg-slate-100 dark:bg-slate-800 p-2.5 rounded-2xl flex justify-around text-center'><div><p class='text-[10px] text-slate-500 font-bold uppercase'>Views</p><p class='text-xs font-black text-brand-600'>" + (room.views || 0) + "</p></div><div><p class='text-[10px] text-slate-500 font-bold uppercase'>Opened</p><p class='text-xs font-black text-indigo-600'>" + (room.opens || 0) + "</p></div><div><p class='text-[10px] text-slate-500 font-bold uppercase'>Enquiries</p><p class='text-xs font-black text-emerald-600'>" + (room.enquiries || 0) + "</p></div></div></article>";
+      }).join("") || "<p class='text-sm text-slate-500'>Abhi koi listing nahi. Form se pehla room publish karein.</p>";
+      document.getElementById("total-landlord-views").textContent = String(views);
+      document.getElementById("total-landlord-opens").textContent = String(opens);
+      document.getElementById("total-landlord-enquiries").textContent = String(enquiries);
+    }
+    function paint() {
+      if (!session) return;
+      if (currentRole === "seeker") renderSeekerFeed();
+      else renderLandlordRooms();
+    }
+
+    function openChatWidget(name, roomId) {
+      if (!session) { toast("Pehle portal me enter karein."); return; }
+      chatRoomId = roomId;
+      document.getElementById("chat-target-name").textContent = name;
+      var box = document.getElementById("chat-widget");
+      box.classList.remove("hidden");
+      box.classList.add("flex");
+      if (currentRole === "seeker" && roomId !== "support") bump(roomId, "opens");
+      listenChat(roomId);
+    }
+    function closeChatWidget() {
+      var box = document.getElementById("chat-widget");
+      box.classList.add("hidden");
+      box.classList.remove("flex");
+      if (chatOff) { chatOff(); chatOff = null; }
+    }
+    function sendChatMessage(e) {
+      e.preventDefault();
+      var input = document.getElementById("chat-input");
+      var text = input.value.trim();
+      if (!text || !session || !chatRoomId) return;
+      input.value = "";
+      pushChat(chatRoomId, { from: session.name, phone: session.phone, text: text, at: Date.now() });
+      if (currentRole === "seeker" && chatRoomId !== "support") bump(chatRoomId, "enquiries");
+    }
+    function drawChat(list) {
+      var box = document.getElementById("chat-messages");
+      if (!list.length) {
+        box.innerHTML = "<div class='bg-slate-200 dark:bg-slate-800 p-3 rounded-2xl max-w-[80%]'>Namaste! Is room ke baare me kya jankari chahiye?</div>";
+        return;
+      }
+      box.innerHTML = list.map(function (msg) {
+        var mine = session && digits(msg.phone) === session.phone;
+        return "<div class='" + (mine ? "bg-brand-600 text-white ml-auto" : "bg-slate-200 dark:bg-slate-800") + " p-3 rounded-2xl max-w-[80%]'><b>" + (msg.from || "") + "</b><br />" + msg.text + "</div>";
+      }).join("");
+      box.scrollTop = box.scrollHeight;
+    }
+    function openProfileModal() {
+      if (!session) { toast("Pehle login karein."); return; }
+      var box = document.getElementById("profile-modal");
+      box.classList.remove("hidden");
+      box.classList.add("flex");
+    }
+    function closeProfileModal() {
+      var box = document.getElementById("profile-modal");
+      box.classList.add("hidden");
+      box.classList.remove("flex");
+    }
+    function toggleDarkMode() {
+      document.documentElement.classList.toggle("dark");
+      try { localStorage.setItem("aaspaas.dark", document.documentElement.classList.contains("dark") ? "1" : "0"); } catch (e) {}
+    }
+    function bump(id, field) {
+      var key = field + ":" + id;
+      if (seen[key]) return;
+      seen[key] = 1;
+      var room = allRooms.find(function (item) { return item.id === id; });
+      if (!room || !dbRef) return;
+      var next = (Number(room[field]) || 0) + 1;
+      dbRef.update(dbRef.ref("portalRooms/" + id), (function (patch) { var o = {}; o[field] = next; return o; })());
+    }
+
+    function localLoad() {
+      try { allRooms = JSON.parse(localStorage.getItem("aaspaas.portalRooms") || "[]"); } catch (e) { allRooms = []; }
+      if (!allRooms.length) {
+        allRooms = seedRooms();
+        localSave();
+      }
+      paint();
+    }
+    function localSave() {
+      try { localStorage.setItem("aaspaas.portalRooms", JSON.stringify(allRooms)); } catch (e) {}
+    }
+    function seedRooms() {
+      return [
+        { id: "seed-laxmi", title: "1 BHK Furnished Room", rent: 6500, type: "1 BHK Room", furnish: "Fully Furnished", address: "Laxmi Nagar, Near Metro Pillar 34, Delhi", owner: "Rohit Kumar", phone: "9876543210", lat: 28.6304, lng: 77.2777, photos: ["https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=500&q=80"], tenants: "bachelor,working", views: 12, opens: 4, enquiries: 1 },
+        { id: "seed-noida", title: "2 BHK Flat for Family", rent: 14000, type: "2 BHK Flat", furnish: "Semi Furnished", address: "Sector 62, Near Park, Noida", owner: "Suresh Sharma", phone: "9811223344", lat: 28.628, lng: 77.3649, photos: ["https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=500&q=80"], tenants: "family,working", views: 20, opens: 6, enquiries: 2 }
+      ];
+    }
+    function saveRoom(room) {
+      if (!dbRef) {
+        room.id = "local-" + Date.now();
+        allRooms.unshift(room);
+        localSave();
+        paint();
+        toast("Room publish ho gaya.");
+        document.getElementById("landlord-form").reset();
+        if (session) {
+          document.getElementById("landlord-form-name").value = session.name;
+          document.getElementById("landlord-form-phone").value = session.phone;
+        }
+        document.getElementById("landlord-photos-preview").innerHTML = "";
+        landlordPhotoDataUrls = [];
+        return;
+      }
+      var id = "room-" + Date.now();
+      room.id = id;
+      dbRef.set(dbRef.ref("portalRooms/" + id), room).then(function () {
+        toast("Room AasPaas par publish ho gaya.");
+        document.getElementById("landlord-form").reset();
+        document.getElementById("landlord-form-name").value = session.name;
+        document.getElementById("landlord-form-phone").value = session.phone;
+        document.getElementById("landlord-photos-preview").innerHTML = "";
+        landlordPhotoDataUrls = [];
+      }).catch(function () { toast("Save nahi ho saka. Dubara try karein."); });
+    }
+    function pushChat(roomId, msg) {
+      if (!dbRef) {
+        drawChat([{ from: msg.from, phone: msg.phone, text: msg.text }]);
+        return;
+      }
+      dbRef.push(dbRef.ref("portalChats/" + roomId), msg);
+    }
+    function listenChat(roomId) {
+      if (chatOff) chatOff();
+      if (!dbRef) { drawChat([]); return; }
+      chatOff = dbRef.onValue(dbRef.ref("portalChats/" + roomId), function (snap) {
+        var val = snap.val() || {};
+        var list = Object.keys(val).map(function (k) { return val[k]; }).sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+        drawChat(list);
+      });
+    }
+
+    try { if (localStorage.getItem("aaspaas.dark") === "1") document.documentElement.classList.add("dark"); } catch (e) {}
+    try {
+      var saved = JSON.parse(localStorage.getItem("aaspaas.portal") || "null");
+      if (saved && saved.phone) enter(saved);
+    } catch (e) {}
+
+    (async function connect() {
+      try {
+        var appMod = await import("https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js");
+        var dbMod = await import("https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js");
+        var app = appMod.initializeApp({
+          apiKey: "AIzaSyBsTplAWUCFk1uM0MnGHogP46KLuYYCyJc",
+          authDomain: "findlocation-8f5a6.firebaseapp.com",
+          databaseURL: "https://findlocation-8f5a6-default-rtdb.firebaseio.com",
+          projectId: "findlocation-8f5a6",
+          storageBucket: "findlocation-8f5a6.firebasestorage.app",
+          messagingSenderId: "913100192065",
+          appId: "1:913100192065:web:77e34912677bfb79afc9c0"
+        });
+        var db = dbMod.getDatabase(app);
+        dbRef = {
+          ref: function (path) { return dbMod.ref(db, path); },
+          set: dbMod.set,
+          update: dbMod.update,
+          push: dbMod.push,
+          onValue: dbMod.onValue,
+          get: dbMod.get
+        };
+        var snap = await dbMod.get(dbMod.ref(db, "portalRooms"));
+        if (!snap.exists()) {
+          var seeds = seedRooms();
+          for (var i = 0; i < seeds.length; i++) await dbMod.set(dbMod.ref(db, "portalRooms/" + seeds[i].id), seeds[i]);
+        }
+        dbMod.onValue(dbMod.ref(db, "portalRooms"), function (live) {
+          var val = live.val() || {};
+          allRooms = Object.keys(val).map(function (id) {
+            var room = val[id];
+            room.id = id;
+            return room;
+          });
+          paint();
+        });
+      } catch (err) {
+        localLoad();
+      }
+    })();
   </script>
 </body>
 </html>
